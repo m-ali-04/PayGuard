@@ -31,7 +31,8 @@ def use_local_store() -> None:
         # MLflow only soft-deletes, so the name stays taken. Not restored automatically,
         # since that would quietly undo the deletion.
         sys.exit(f"Experiment '{EXPERIMENT}' is deleted. Restore it in the MLflow UI, or purge it "
-                 "from the repo root with: uv run mlflow gc --backend-store-uri sqlite:///mlflow.db")
+                 "from the repo root with: uv run mlflow gc --backend-store-uri sqlite:///mlflow.db "
+                 "--tracking-uri sqlite:///mlflow.db")
     mlflow.set_experiment(EXPERIMENT)
 
 
