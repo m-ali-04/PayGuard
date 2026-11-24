@@ -2,3 +2,4 @@ CLAUDE.local.md
 data/
 .venv/
 __pycache__/
+context/

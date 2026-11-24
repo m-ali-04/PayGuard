@@ -43,3 +43,8 @@ Use this alongside standard planning practice. It's a guideline, not a replaceme
 - Use the language's and framework's idiomatic patterns and standard library before adding dependencies. New dependencies are a decision for the owner.
 - Handle errors explicitly at boundaries (I/O, external services, user input); don't scatter defensive checks internally.
 - Write tests for meaningful behaviour, not to hit a coverage number.
+
+## Git Workflow
+- `main` always works. Each step happens on a short-lived branch with conventional commits; open a PR that explains what changed, why, how to verify it, and any AI_USAGE update.
+- Run a code review on each PR and post the findings as comments; fix real problems or explain why not.
+- The owner reviews and merges. Never merge yourself or push directly to `main`.
