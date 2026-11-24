@@ -30,7 +30,11 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
    uv run scripts/train.py
    uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # from the repo root; browse at http://127.0.0.1:5000
    ```
-6. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
+6. **Write the decision report.** This scores the latest run of each model on the validation and test windows, writes `reports/decision_report.md` and logs the headline metrics to each model's MLflow run (about 3 minutes, mostly the bootstrap):
+   ```bash
+   uv run scripts/evaluate.py
+   ```
+7. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
    ```bash
    uv run pytest
    ```
@@ -56,7 +60,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Synchronous scoring, one transaction at a time.** Batch scoring can't decide on a transaction inside its authorisation window. *Review later:* server-side micro-batching.
 - **Real-time simulation: replay to a scoring API.** A script sends the client's transactions in time order to a local scoring service, and we measure latency per request.
 - **Data understanding** ([report](reports/data_understanding.md)): about 211 frauds on day 2, so small model differences are noise. Several features drift between the two days, which supports a time split. Seven features separate fraud strongly on their own, so a simple baseline is credible. There are 1,081 exact duplicates, all within the same second. Analysis is look-only; no data is changed.
-- **Shortlist: logistic regression (interpretable baseline) and gradient-boosted trees** (scikit-learn's `HistGradientBoostingClassifier`), both with default settings. The boosted trees' built-in early stopping is turned off, because it holds out a random sample of training rows and would shuffle time. Twelve model families were considered. Random forest usually trails boosted trees; k-NN, kernel SVM and neural networks fit poorly here (latency, training cost, tuning); sequence and graph models need card history the data doesn't have.
+- **Shortlist: logistic regression (interpretable baseline) and gradient-boosted trees** (scikit-learn's `HistGradientBoostingClassifier`), both with default settings except two stability settings on the boosted trees. Early stopping is off, because it holds out a random sample of training rows and would shuffle time. `l2_regularization=1.0` (XGBoost's default for the same term), because with sklearn's default of 0 its training diverged on this data: scores stuck at exactly 1.0, so it couldn't rank its top alerts. Twelve model families were considered. Random forest usually trails boosted trees; k-NN, kernel SVM and neural networks fit poorly here (latency, training cost, tuning); sequence and graph models need card history the data doesn't have.
 - **Class imbalance:** no resampling. Logistic regression weights the rare fraud class up (`class_weight="balanced"`); the trees use defaults.
 - **Features: the 28 anonymised components and Amount (log-transformed).** `Time` counts seconds since the file started, so it can't be computed live, and it's dropped.
 - **Preprocessing lives inside each model's saved pipeline**, so the API loads one artifact that carries its own transforms. The pipeline picks its input fields by name, so a raw transaction scores the same in any field order or with extra fields; tests check this, and that a saved and reloaded model gives identical scores.
@@ -65,18 +69,31 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 
 ### Evaluation
 *In planning. Decisions so far:*
-- **Alert budget: 0.1% of transactions** (~140 alerts a day), a sample figure based on the Fraud Detection Handbook's note that real systems run close to 0.1%. The client hasn't provided its review capacity.
-- **Selection rule, fixed before any model is compared:** choose by average precision, provided the model isn't worse than the alternatives at the 0.1% budget. If the two disagree, that's reported as a finding, not settled by changing the rule.
-- **Model gains are judged, not gated.** A decision report puts each candidate next to the simpler model: average precision and frauds caught a day at the budget, each with a bootstrap 95% range for the difference, plus p99 latency and complexity. The owner decides whether a gain is worth its cost, and the reason is recorded. The report's contents are fixed before any comparison is run.
+- **Alert budget: 0.2% of transactions** (~285 alerts a day), a sample figure chosen by the owner; the client hasn't provided its review capacity. It started at 0.1%, the Fraud Detection Handbook's real-world figure, but that sat below the 0.173% fraud rate and capped recall at 58% on an assumption of our own. 0.2% is just above the fraud rate, so the model, not the budget, is the limit. Changed before any model was scored.
+- **Selection rule, fixed before any model is compared:** choose by average precision, provided the model isn't worse than the alternatives at the alert budget. If the two disagree, that's reported as a finding, not settled by changing the rule.
+- **Model gains are judged, not gated.** A decision report puts each candidate next to the simpler model: average precision and frauds caught at the budget (counted per test window, not scaled to a day, since the 12-hour window is the daytime half), each with a bootstrap 95% range for the difference, plus p99 latency and complexity. The owner decides whether a gain is worth its cost, and the reason is recorded. The report's contents are fixed before any comparison is run.
 - **Validation: a single time-ordered train / validation / test split.** Random k-fold would train on future transactions, hide the drift between the two days, and put identical duplicate rows on both sides of a fold. Forward-chaining (the time-aware form of k-fold) was considered, but with only 48 hours it can't separate drift from time-of-day effects, so it adds machinery without a reliable reading.
 - **Windows:** train on day 1 (0–24h, 281 frauds), set the threshold on the first half of day 2 (24–36h, 96 frauds), test on the second half (36–48h, 115 frauds). There's no gap between windows, and the model is trained on the training window only, so the threshold always comes from a model that never saw the validation data.
 - **Duplicates are kept.** The 1,081 exact copies are part of the client's real stream, and deduplicating them belongs upstream, at ingestion, not in the model.
 - **Report shows validation beside test**, as a rough two-point view over time. The windows differ in fraud mix (night vs daytime), so it isn't a clean measure of drift.
-- **Metrics reported:** average precision (PR-AUC, computed step-wise), precision and recall at the 0.1% budget, and ROC-AUC (reference only; it can rank models misleadingly on imbalanced data).
-- **Live operating point:** a fixed score threshold set on validation data to flag about 0.1% of transactions. A daily top-k ranking isn't possible when scoring one transaction at a time.
+- **Metrics reported:** average precision (PR-AUC, computed step-wise), precision and recall at the budget, and ROC-AUC (reference only; it can rank models misleadingly on imbalanced data).
+- **Live operating point:** a fixed score threshold set on validation data to flag 0.2% of transactions there. A daily top-k ranking isn't possible when scoring one transaction at a time.
 
 ### Results
-*Pending.*
+Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv run scripts/evaluate.py`). Test window 36–48h, 115 frauds, budget 0.2% = 185 alerts.
+
+| | Logistic regression | Gradient-boosted trees (HGB) |
+|---|---|---|
+| Average precision | 0.677 | **0.732** |
+| Frauds caught at the budget (of 115) | 88 | **90** |
+| Threshold fixed on validation, applied to test: alerts / caught | 82 / 68 | 96 / **82** |
+| p99 latency, model only (limit 50 ms) | 7 ms | 18 ms |
+| Saved model size | 146 KB | 1,057 KB |
+
+- **Selected model: gradient-boosted trees (owner's decision).** It ranks better and catches 14 more frauds when the threshold is fixed in advance, as it would be live. Its threshold is more stable: logistic regression's scores bunch near 1.0, so a tiny change in its cut moves many alerts. It also holds up better from night to day (71% vs 59% of frauds caught with the night-set threshold). The larger model file isn't a limitation here, and its latency is well under the 50 ms limit.
+- **How certain the gain is:** the bootstrap 95% ranges for the difference include zero (average precision +0.055 [−0.016, +0.121], frauds caught +2 [−3, +7]). With 115 test frauds, the two models can't be separated with confidence on those measures; the choice rests on live behaviour as well.
+- **Budget beyond 0.2% buys little:** checking 0.3% of transactions catches about 92 of 115, and 5% only about 100. The last ~20% of frauds look genuine to both models, and catching them would take new information such as card history.
+- **The night-set threshold is too strict by day:** live, both models flag about half the 0.2% budget on the test window. Both genuine and fraud scores run lower by day, so a single fixed threshold misses daytime fraud. See Limitations.
 
 ### Cut / Added
 - **Cut: data versioning (DVC).** The data is one fixed source file, so a hash-checked download script gives the same guarantee without needing a storage remote. If the client's data starts changing over time, revisit this with DVC or the client's own data platform.
@@ -88,6 +105,8 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Cut: resampling (SMOTE, undersampling).** It adds a step that never runs live, and it hasn't shown gains on ranking metrics such as average precision.
 - **Possible addition: hour-of-day feature.** Fraud runs 4.3x higher in quiet hours, but the data's clock start is unknown and covers a single night, so the feature would rest on an assumption and one day of evidence. It can be tested as one variant through the decision report.
 - **Possible addition: anomaly detection** (for example Isolation Forest) as a companion signal for new fraud patterns that labels don't cover yet.
+- **Cut: SHAP explanations.** The client didn't ask for explainability, and per-decision attributions would point to anonymised PCA fields with no business meaning. Revisit if the client or a regulator requires explanations.
+- **Possible addition: time-of-day handling,** once several weeks of data show the day/night pattern regularly. From cheapest to most involved: separate thresholds for busy and quiet hours, a time-of-day feature, or separate models for each (each would train on fewer frauds). Each option would be tested through the decision report.
 - **Out of scope: feature store.** It's how enterprises centralise feature definitions, but the prototype's single shared code path covers the same need at this scale.
 
 ### Limitations
@@ -95,6 +114,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - There's no card or customer ID, so card-level metrics (such as card precision top-k, which counts each compromised card once) and history (velocity) features aren't possible.
 - There's no transaction ID, so exact duplicates (same values, same second) can't be told apart as retries, double submissions or export errors. Fraud is 10x more common inside these duplicate groups (1.73% against 0.173%), which suggests card-testing behaviour. Using that as a live signal needs state about earlier transactions, which is out of scope for the same reason as velocity features.
 - Identical genuine transactions recur at different times, some across window boundaries (805 of 4,383 groups span more than one window), consistent with recurring payments. The model sees these patterns in training, as it would live.
+- The threshold is set on the night half of day 2 and tested on the daytime half. Scores run lower by day, so the fixed threshold flags about half the budget and misses daytime fraud. With 48 hours, drift can't be told apart from time-of-day effects. In production, the threshold would be recalibrated regularly on a representative period.
 - The features are anonymised with PCA, which limits feature engineering and how well we can explain decisions.
 
 ## Problem 2: Complaint Triage
