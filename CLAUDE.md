@@ -10,6 +10,7 @@ Treat the provided data as if it belongs to the client. See CONTEXT.md for full 
 - Complexity must match the results. Don't add complexity without a proven gain.
 - Practical, real-world performance beats leaderboard gains: no extensive hyperparameter tuning or ensembling done just to raise scores.
 - Latency must be sufficient, but it never blocks an approach. Reduce it with the right tooling, not by compromising the model.
+- Don't assume operating conditions (transaction volume, traffic type, alert/review capacity); raise them with the owner before using them.
 
 ## Collaboration Rules
 - The project owner (solutions architect) makes every decision. Claude recommends options and doesn't decide alone.
