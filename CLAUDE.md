@@ -10,6 +10,7 @@ Treat the provided data as if it belongs to the client. See CONTEXT.md for full 
 - Complexity must match the results. Don't add complexity without a proven gain.
 - Practical, real-world performance beats leaderboard gains: no extensive hyperparameter tuning or ensembling done just to raise scores.
 - Latency must be sufficient, but it never blocks an approach. Reduce it with the right tooling, not by compromising the model.
+- Don't assume operating conditions (transaction volume, traffic type, alert/review capacity); raise them with the owner before using them.
 
 ## Collaboration Rules
 - The project owner (solutions architect) makes every decision. Claude recommends options and doesn't decide alone.
@@ -38,6 +39,7 @@ Use this alongside standard planning practice. It's a guideline, not a replaceme
 - Keep code concise: no speculative abstractions, unused options, or "just in case" layers. Add complexity only when a current need justifies it.
 - Clever solutions are welcome, but flag them for the owner's review before finalising. Code should be efficient *and* readable; optimise hot paths deliberately, not everywhere.
 - One responsibility per function/module; small, well-named units over long ones.
+- Training and serving share one feature/preprocessing code path; never reimplement a transformation for inference. A parity test checks served scores against offline scores.
 - No dead code, commented-out blocks, or duplicated logic — extract shared logic once it repeats.
 - Comments explain *why*, not *what*; the code itself should make the *what* obvious.
 - Use the language's and framework's idiomatic patterns and standard library before adding dependencies. New dependencies are a decision for the owner.
