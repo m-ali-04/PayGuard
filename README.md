@@ -68,7 +68,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **No training-serving skew by design:** training and serving share one preprocessing code path, and a parity test checks the API's scores against the offline scores.
 
 ### Evaluation
-*In planning. Decisions so far:*
+*Decisions:*
 - **Alert budget: 0.2% of transactions** (~285 alerts a day), a sample figure chosen by the owner; the client hasn't provided its review capacity. It started at 0.1%, the Fraud Detection Handbook's real-world figure, but that sat below the 0.173% fraud rate and capped recall at 58% on an assumption of our own. 0.2% is just above the fraud rate, so the model, not the budget, is the limit. Changed before any model was scored.
 - **Selection rule, fixed before any model is compared:** choose by average precision, provided the model isn't worse than the alternatives at the alert budget. If the two disagree, that's reported as a finding, not settled by changing the rule.
 - **Model gains are judged, not gated.** A decision report puts each candidate next to the simpler model: average precision and frauds caught at the budget (counted per test window, not scaled to a day, since the 12-hour window is the daytime half), each with a bootstrap 95% range for the difference, plus p99 latency and complexity. The owner decides whether a gain is worth its cost, and the reason is recorded. The report's contents are fixed before any comparison is run.
@@ -87,7 +87,7 @@ Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv
 | Average precision | 0.677 | **0.732** |
 | Frauds caught at the budget (of 115) | 88 | **90** |
 | Threshold fixed on validation, applied to test: alerts / caught | 82 / 68 | 96 / **82** |
-| p99 latency, model only (limit 50 ms) | 7 ms | 18 ms |
+| p99 latency, model only (limit 50 ms) | ~7 ms | 16–18 ms (varies by run) |
 | Saved model size | 146 KB | 1,057 KB |
 
 - **Selected model: gradient-boosted trees (owner's decision).** It ranks better and catches 14 more frauds when the threshold is fixed in advance, as it would be live. Its threshold is more stable: logistic regression's scores bunch near 1.0, so a tiny change in its cut moves many alerts. It also holds up better from night to day (71% vs 59% of frauds caught with the night-set threshold). The larger model file isn't a limitation here, and its latency is well under the 50 ms limit.
