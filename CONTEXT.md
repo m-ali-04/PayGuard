@@ -80,7 +80,10 @@ Running log of context provided about the project. Items that belong in CLAUDE.m
 - **Decision (2026-11-24): pytest is on hold.** `ks()` was checked once against SciPy's `ks_2samp` (exact match). Tests will be added with the prototype code (preprocessing, parity test).
 
 ### Metrics
-- **Deferred (2026-11-24).** Still open: (1) which metric picks the model (PR-AUC, or recall at a fixed alert budget), (2) how to set the alert budget (one assumed value or a range; needs research on typical issuer review capacity), (3) when a gain counts as real (for example, bootstrap confidence intervals). Latency is a pass/fail gate, not a scored metric. Cost-weighting and calibration come later.
+- **Decision (2026-11-24): alert budget sample figure = 0.1% of transactions** (~140 alerts a day on the client's volume). Source: the Fraud Detection Handbook says real systems are closer to 0.1%. It's a sample figure chosen by the owner, not client-provided. At 0.1%, recall is capped at ~58% because the fraud rate is 0.17%.
+- **Agreed principles:** commit to the selection rule before comparing models. Report every metric. Compute PR-AUC (average precision) step-wise, never by linear interpolation. At a fixed budget, precision and recall rank models identically, so both are reported. ROC-AUC is reported for reference only and never used to choose. Card precision top-k can't be computed (no card ID). The live threshold is a fixed score set on validation data, not a daily top-k. Latency is a pass/fail gate. Cost-weighting and calibration come later.
+- **Decision (2026-11-24): selection rule.** The model is chosen by average precision (PR-AUC) on the test set, provided it is not worse than the alternatives at the 0.1% budget (precision/recall there). All metrics are reported. If the curves cross (a model wins overall but loses at the budget), we report it to the client as a finding and the owner decides; we don't switch rules.
+- **Still open:** when a gain counts as real (for example, bootstrap confidence intervals). Exact test-set sizes come with the split design (likely ~100 test frauds with a validation set).
 
 ### Cost of Errors
 - Weigh missed fraud against blocking genuine customers using standard industry practice, on the lenient side.
@@ -93,6 +96,13 @@ Running log of context provided about the project. Items that belong in CLAUDE.m
   - **Validation:** split by time, not randomly. Leave a gap between train and test to model **feedback delay**, the time before fraud labels arrive (a week is a reasonable first approximation).
   - **Cost of errors:** estimates vary widely. False declines often cost issuers more than the fraud itself, through churn and lower spend. There's no standard ratio, and it should come from the client's own portfolio.
   - **Models:** gradient-boosted trees usually come out ahead on this kind of tabular data. Logistic regression stays common as an interpretable baseline. None of the published comparisons report latency, calibration or drift.
+- **Fraud Detection Handbook, Ch. 4 "Performance metrics" (ULB Machine Learning Group; read 2026-11-24 at the owner's request):**
+  - It recommends reporting **ROC-AUC, average precision (AP) and card precision top-k together**, as complementary measures. It doesn't name one metric for model selection.
+  - Operations metric: **precision top-k per day**, with k = the number of alerts investigators can process in a day. A card-level version counts each card once, which we can't compute (no card ID).
+  - Its example uses k = 100 a day (~1% of its test set) and says real systems are **closer to 0.1%** of transactions, with "any FPR higher than 0.001 already too high".
+  - In its example, ROC-AUC and AP **rank two models in opposite order**, which is evidence that ROC-AUC can mislead model selection.
+  - Use threshold-based metrics only when the constraints are clear (its example: "precision above 60 percent"); otherwise compare models threshold-free.
+  - Its protocol is 7 days train, 7 days delay, 7 days test, with detected cards removed from later days. We can't replicate that (2 days, no card ID).
 - **Data limitations found:** the data covers only about 2 days, has no card or customer ID, and its features are anonymised with PCA. That means we can't simulate a week of feedback delay, can't compute card-level metrics, and can't build history (velocity) features. These go to the client as out-of-scope items.
 
 ### Out of Scope

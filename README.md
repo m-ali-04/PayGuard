@@ -50,7 +50,11 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **No training-serving skew by design:** training and serving share one preprocessing code path, and a parity test checks the API's scores against the offline scores.
 
 ### Evaluation
-*In planning.*
+*In planning. Decisions so far:*
+- **Alert budget: 0.1% of transactions** (~140 alerts a day), a sample figure based on the Fraud Detection Handbook's note that real systems run close to 0.1%. The client hasn't provided its review capacity.
+- **Selection rule, fixed before any model is compared:** choose by average precision, provided the model isn't worse than the alternatives at the 0.1% budget. If the two disagree, that's reported as a finding, not settled by changing the rule.
+- **Metrics reported:** average precision (PR-AUC, computed step-wise), precision and recall at the 0.1% budget, and ROC-AUC (reference only; it can rank models misleadingly on imbalanced data).
+- **Live operating point:** a fixed score threshold set on validation data to flag about 0.1% of transactions. A daily top-k ranking isn't possible when scoring one transaction at a time.
 
 ### Results
 *Pending.*
@@ -64,7 +68,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 
 ### Limitations
 - The data covers only about 2 days of transactions, so we can't simulate realistic feedback delay (the time before fraud labels arrive).
-- There's no card or customer ID, so card-level metrics and history (velocity) features aren't possible.
+- There's no card or customer ID, so card-level metrics (such as card precision top-k, which counts each compromised card once) and history (velocity) features aren't possible.
 - The features are anonymised with PCA, which limits feature engineering and how well we can explain decisions.
 
 ## Problem 2: Complaint Triage
