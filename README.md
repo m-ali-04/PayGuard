@@ -38,7 +38,11 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 **Goal:** flag fraudulent card transactions with a model that serves real-time inference.
 
 ### Approach
-*In planning.*
+*In planning. Decisions so far:*
+- **Latency baseline: p99 ≤ 50 ms per transaction.** This is the lenient end of the published 10–50 ms range for fraud scoring, and improving on it is a goal if we have capacity.
+- **Synchronous scoring, one transaction at a time.** Batch scoring can't decide on a transaction inside its authorisation window. *Review later:* server-side micro-batching.
+- **Real-time simulation: replay to a scoring API.** A script sends the client's transactions in time order to a local scoring service, and we measure latency per request.
+- **No training-serving skew by design:** training and serving share one preprocessing code path, and a parity test checks the API's scores against the offline scores.
 
 ### Evaluation
 *In planning.*
@@ -49,6 +53,8 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 ### Cut / Added
 - **Cut: data versioning (DVC).** The data is one fixed source file, so a hash-checked download script gives the same guarantee without needing a storage remote. If the client's data starts changing over time, revisit this with DVC or the client's own data platform.
 - **Cut: third-party mirror download.** Kaggle's public download works without an account, so a second automatic source was redundant. If Kaggle ever requires sign-in, the manual route covers it.
+- **Possible additions if time allows: Kafka streaming.** Either a local Kafka pipeline, or Kafka beside the API for decision logging and monitoring. A request/response API matches the authorisation path, so the prototype starts there.
+- **Out of scope: feature store.** It's how enterprises centralise feature definitions, but the prototype's single shared code path covers the same need at this scale.
 
 ### Limitations
 - The data covers only about 2 days of transactions, so we can't simulate realistic feedback delay (the time before fraud labels arrive).

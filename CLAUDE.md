@@ -38,6 +38,7 @@ Use this alongside standard planning practice. It's a guideline, not a replaceme
 - Keep code concise: no speculative abstractions, unused options, or "just in case" layers. Add complexity only when a current need justifies it.
 - Clever solutions are welcome, but flag them for the owner's review before finalising. Code should be efficient *and* readable; optimise hot paths deliberately, not everywhere.
 - One responsibility per function/module; small, well-named units over long ones.
+- Training and serving share one feature/preprocessing code path; never reimplement a transformation for inference. A parity test checks served scores against offline scores.
 - No dead code, commented-out blocks, or duplicated logic — extract shared logic once it repeats.
 - Comments explain *why*, not *what*; the code itself should make the *what* obvious.
 - Use the language's and framework's idiomatic patterns and standard library before adding dependencies. New dependencies are a decision for the owner.

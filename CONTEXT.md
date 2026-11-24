@@ -48,10 +48,20 @@ Running log of context provided about the project. Items that belong in CLAUDE.m
 ### Data
 - The dataset is the credit-card fraud transactions data (source ID `mlg-ulb/creditcardfraud`). **Treat it as client data, not as a public or competition dataset.** Talk about it in terms of the client.
 
+### Real-Time Setting
+- The client works on **real-time data**. Our data is a static file, so the prototype needs a way to replay it as a live stream.
+- **Decision (2026-11-24): Option A, replay to a scoring API.** A script reads the file in time order and sends each transaction to a local scoring service. **Possible additions if time allows:** B (local Kafka pipeline) and C (A with Kafka beside it for logging and monitoring).
+- **Training-serving skew (from a blog the owner read):** models lose accuracy in production when features are computed one way in training and another way at inference. The fix is structural: define features in one place and compute each kind (just-in-time, near-real-time, batch) on the right path. What this means for us: training and the API share one preprocessing code path, and a parity test checks that the API's scores on replayed transactions match the offline scores. Any training-data cleaning must be something that could also happen live, or be a fix for a genuine data error. The client's upstream PCA step is a skew risk at integration. A feature store is an enterprise addition and out of scope for the prototype. *(Rule added to CLAUDE.md under Code Quality.)*
+
 ### Latency
 - Set the budget from industry standards, on the lenient side if needed.
 - Latency doesn't override or block any approach when we discuss models or other decisions.
 - Latency has to be good enough. Reduce it with the right tools (serving, runtime, infrastructure), not by compromising elsewhere.
+- **Decision (2026-11-24): p99 ≤ 50 ms per transaction is the baseline.** It's the lenient end of the published 10–50 ms range. If we have capacity, improving on it is a goal.
+- **Decision (2026-11-24, to be reviewed later): score one transaction at a time, synchronously.** The owner read that batch processing isn't enough because of ingestion delays: a batch can't decide on a transaction inside its authorisation window. Point for the review: server-side micro-batching (grouping requests that arrive within a few ms) is a serving-tool option that raises throughput without changing the per-transaction contract.
+
+### Metrics
+- **Deferred (2026-11-24).** Still open: (1) which metric picks the model (PR-AUC, or recall at a fixed alert budget), (2) how to set the alert budget (one assumed value or a range; needs research on typical issuer review capacity), (3) when a gain counts as real (for example, bootstrap confidence intervals). Latency is a pass/fail gate, not a scored metric. Cost-weighting and calibration come later.
 
 ### Cost of Errors
 - Weigh missed fraud against blocking genuine customers using standard industry practice, on the lenient side.
