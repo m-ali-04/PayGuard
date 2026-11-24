@@ -54,6 +54,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Cut: data versioning (DVC).** The data is one fixed source file, so a hash-checked download script gives the same guarantee without needing a storage remote. If the client's data starts changing over time, revisit this with DVC or the client's own data platform.
 - **Cut: third-party mirror download.** Kaggle's public download works without an account, so a second automatic source was redundant. If Kaggle ever requires sign-in, the manual route covers it.
 - **Possible additions if time allows: Kafka streaming.** Either a local Kafka pipeline, or Kafka beside the API for decision logging and monitoring. A request/response API matches the authorisation path, so the prototype starts there.
+- **Cut: Jupyter notebooks.** The presentation shows findings, not analysis code, so data understanding is a script that writes a Markdown report. Model comparison uses MLflow's UI. This leaves no Jupyter tooling in the project.
 - **Out of scope: feature store.** It's how enterprises centralise feature definitions, but the prototype's single shared code path covers the same need at this scale.
 
 ### Limitations

@@ -60,6 +60,11 @@ Running log of context provided about the project. Items that belong in CLAUDE.m
 - **Decision (2026-11-24): p99 ≤ 50 ms per transaction is the baseline.** It's the lenient end of the published 10–50 ms range. If we have capacity, improving on it is a goal.
 - **Decision (2026-11-24, to be reviewed later): score one transaction at a time, synchronously.** The owner read that batch processing isn't enough because of ingestion delays: a batch can't decide on a transaction inside its authorisation window. Point for the review: server-side micro-batching (grouping requests that arrive within a few ms) is a serving-tool option that raises throughput without changing the per-transaction contract.
 
+### Tooling & Audience
+- **MLflow** will be used later to evaluate (track and compare) the models.
+- The project will be **presented to technical people** as well, so the code and analysis need to read well when walked through.
+- **Decision (2026-11-24): data understanding is a script that writes a Markdown report with figures, not a notebook.** The presentation will show the data findings only, not walk through the analysis code. MLflow's UI covers model comparison, so no notebooks are planned. Presentation flow: data findings report → model comparison in MLflow → live replay demo against the API.
+
 ### Metrics
 - **Deferred (2026-11-24).** Still open: (1) which metric picks the model (PR-AUC, or recall at a fixed alert budget), (2) how to set the alert budget (one assumed value or a range; needs research on typical issuer review capacity), (3) when a gain counts as real (for example, bootstrap confidence intervals). Latency is a pass/fail gate, not a scored metric. Cost-weighting and calibration come later.
 
