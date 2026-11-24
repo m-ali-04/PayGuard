@@ -6,13 +6,14 @@ This file records the AI tools used on PayGuard, what each was used for, and rou
 
 | Tool        | Purpose                                         | Approx. share of code |
 |-------------|-------------------------------------------------|-----------------------|
-| Claude Code | Project docs (CONTEXT.md, CLAUDE.md, this file) | 0% (no code yet)      |
+| Claude Code | Project docs; setup and analysis scripts          | ~100% of code so far  |
 
 ## Per-Component Estimates
 
 | Component | Tool | Approx. AI share | Last reviewed |
 |-----------|------|------------------|---------------|
 | Setup (scripts/get_data.py) | Claude Code | ~100% | 2026-11-24 (approved by owner) |
+| Data understanding (scripts/data_understanding.py, report) | Claude Code | ~100% | 2026-11-24 (reviewed by owner) |
 
 ## Usage Log
 
@@ -21,6 +22,7 @@ This file records the AI tools used on PayGuard, what each was used for, and rou
 | 2026-11-24 | Claude Code | Docs             | Drafted CONTEXT.md, CLAUDE.md and AI_USAGE.md        | Approved by owner |
 | 2026-11-24 | Claude Code | Problem 1 / Research | Downloaded and checked the dataset; first pass of domain research | Pending owner review |
 | 2026-11-24 | Claude Code | Setup | Set up uv/Python 3.12; wrote scripts/get_data.py (Kaggle/manual, hash-checked) and the README setup steps | Approved by owner |
+| 2026-11-24 | Claude Code | Problem 1 / Data understanding | Wrote scripts/data_understanding.py and drafted the report text; added pandas/matplotlib in the `analysis` group | Reviewed by owner |
 | 2026-11-24 | Claude Code | Repo | Initialised git, wrote the README workflow section, created the private GitHub repo, made the initial commits | Approved by owner |
 
 ## Estimation Method

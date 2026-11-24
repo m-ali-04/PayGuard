@@ -21,6 +21,10 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
    ```
    For a manual download, get it from https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud, place `creditcard.csv` at `data/raw/creditcard.csv` and re-run the script to verify it.
    Both routes are checked against the same SHA-256: `76274b691b16a6c49d3f159c883398e03ccd6d1ee12d9d8ee38f4b4b98551a89`.
+4. **(Optional) Regenerate the data report.** The analysis tools sit in a separate `analysis` dependency group, so the serving runtime doesn't install them:
+   ```bash
+   uv run --group analysis scripts/data_understanding.py   # writes reports/data_understanding.md + figures
+   ```
 
 ## Development Workflow
 
@@ -42,6 +46,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Latency baseline: p99 ≤ 50 ms per transaction.** This is the lenient end of the published 10–50 ms range for fraud scoring, and improving on it is a goal if we have capacity.
 - **Synchronous scoring, one transaction at a time.** Batch scoring can't decide on a transaction inside its authorisation window. *Review later:* server-side micro-batching.
 - **Real-time simulation: replay to a scoring API.** A script sends the client's transactions in time order to a local scoring service, and we measure latency per request.
+- **Data understanding** ([report](reports/data_understanding.md)): about 211 frauds on day 2, so small model differences are noise. Several features drift between the two days, which supports a time split. Seven features separate fraud strongly on their own, so a simple baseline is credible. There are 1,081 exact duplicates, all within the same second. Analysis is look-only; no data is changed.
 - **No training-serving skew by design:** training and serving share one preprocessing code path, and a parity test checks the API's scores against the offline scores.
 
 ### Evaluation
