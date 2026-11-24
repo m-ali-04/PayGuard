@@ -25,6 +25,15 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
    ```bash
    uv run --group analysis scripts/data_understanding.py   # writes reports/data_understanding.md + figures
    ```
+5. **Train the shortlisted fraud models.** This fits each candidate on the training window and logs it to a local MLflow store (`mlflow.db`, `mlruns/`, both gitignored):
+   ```bash
+   uv run scripts/train.py
+   uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # browse runs at http://127.0.0.1:5000
+   ```
+6. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
+   ```bash
+   uv run pytest
+   ```
 
 ## Development Workflow
 
@@ -47,6 +56,11 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Synchronous scoring, one transaction at a time.** Batch scoring can't decide on a transaction inside its authorisation window. *Review later:* server-side micro-batching.
 - **Real-time simulation: replay to a scoring API.** A script sends the client's transactions in time order to a local scoring service, and we measure latency per request.
 - **Data understanding** ([report](reports/data_understanding.md)): about 211 frauds on day 2, so small model differences are noise. Several features drift between the two days, which supports a time split. Seven features separate fraud strongly on their own, so a simple baseline is credible. There are 1,081 exact duplicates, all within the same second. Analysis is look-only; no data is changed.
+- **Shortlist: logistic regression (interpretable baseline) and gradient-boosted trees** (scikit-learn's `HistGradientBoostingClassifier`), both with default settings. The boosted trees' built-in early stopping is turned off, because it holds out a random sample of training rows and would shuffle time. Twelve model families were considered. Random forest usually trails boosted trees; k-NN, kernel SVM and neural networks fit poorly here (latency, training cost, tuning); sequence and graph models need card history the data doesn't have.
+- **Class imbalance:** no resampling. Logistic regression weights the rare fraud class up (`class_weight="balanced"`); the trees use defaults.
+- **Features: the 28 anonymised components and Amount (log-transformed).** `Time` counts seconds since the file started, so it can't be computed live, and it's dropped.
+- **Preprocessing lives inside each model's saved pipeline**, so the API loads one artifact that carries its own transforms. The pipeline picks its input fields by name, so a raw transaction scores the same in any field order or with extra fields; tests check this, and that a saved and reloaded model gives identical scores.
+- **Models are logged with MLflow** in its default safe format (skops), with the pinned dependency versions and the raw-input contract recorded beside each model. Code lives in `src/payguard/fraud/` (`data.py` for the windows, `models.py` for the pipelines), shared by training, tests and, later, the API.
 - **No training-serving skew by design:** training and serving share one preprocessing code path, and a parity test checks the API's scores against the offline scores.
 
 ### Evaluation
@@ -71,6 +85,9 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Cut: Jupyter notebooks.** The presentation shows findings, not analysis code, so data understanding is a script that writes a Markdown report. Model comparison uses MLflow's UI. This leaves no Jupyter tooling in the project.
 - **Possible addition: deduplicate exact copies for fitting and threshold setting only** (train and validation windows), keeping them in test and the replay. 13 distinct frauds appear 32 times across the data (9 extra fraud copies in the training window), so they carry extra weight. Not done for now: the gain is unproven, and deduplication normally happens upstream, at ingestion, by transaction ID.
 - **Cut: forward-chaining validation.** With one daily cycle of data, changes from one fold to the next can't be told apart from time-of-day effects. It's the recommended method once the client provides several weeks of history, because it shows how a model holds up over time and whether retraining on fresher data helps.
+- **Cut: resampling (SMOTE, undersampling).** It adds a step that never runs live, and it hasn't shown gains on ranking metrics such as average precision.
+- **Possible addition: hour-of-day feature.** Fraud runs 4.3x higher in quiet hours, but the data's clock start is unknown and covers a single night, so the feature would rest on an assumption and one day of evidence. It can be tested as one variant through the decision report.
+- **Possible addition: anomaly detection** (for example Isolation Forest) as a companion signal for new fraud patterns that labels don't cover yet.
 - **Out of scope: feature store.** It's how enterprises centralise feature definitions, but the prototype's single shared code path covers the same need at this scale.
 
 ### Limitations
