@@ -42,8 +42,8 @@ Validation (24–36h) covers the quiet night hours (fraud 0.20%); test is daytim
 
 | Model | p50 ms | p99 ms | ≤ 50 ms |
 |---|---|---|---|
-| logreg | 3.85 | 7.04 | pass |
-| hgb | 6.13 | 18.12 | pass |
+| logreg | 3.41 | 6.91 | pass |
+| hgb | 5.97 | 15.55 | pass |
 
 2,000 calls after 50 warm-up, on Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43, 22 logical cores. Depends on hardware. End-to-end API latency is measured in the API step.
 
@@ -51,5 +51,5 @@ Validation (24–36h) covers the quiet night hours (fraud 0.20%); test is daytim
 
 | Model | Saved model size | Notes |
 |---|---|---|
-| logreg | 146 KB | One weight per field plus an intercept. Each score is a weighted sum, so a decision can be read off the weights, though the fields are anonymised PCA components. |
-| hgb | 1,057 KB | 100 trees (default, early stopping off). Non-linear; explaining a single decision needs a tool such as SHAP. |
+| logreg | 146 KB | 29 weights plus an intercept. Each score is a weighted sum, so a decision can be read off the weights, though the fields are anonymised PCA components. |
+| hgb | 1,057 KB | 100 trees (early stopping off). Non-linear; explaining a single decision needs a tool such as SHAP. |

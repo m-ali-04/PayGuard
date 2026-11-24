@@ -21,7 +21,8 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from get_data import DEST, SHA256, is_valid
 from payguard.fraud.data import FEATURES, LABEL, WINDOWS, load, split
 from payguard.fraud.evaluation import (
-    BUDGET, alerts, at_budget, at_threshold, paired_bootstrap, threshold_for_budget,
+    BOOTSTRAP_RESAMPLES, BOOTSTRAP_SEED, BUDGET, alerts, at_budget, at_threshold, paired_bootstrap,
+    threshold_for_budget,
 )
 from payguard.fraud.models import CANDIDATES
 from train import EXPERIMENT, ROOT, use_local_store
@@ -30,15 +31,16 @@ REPORT = ROOT / "reports" / "decision_report.md"
 LATENCY_LIMIT_MS = 50
 LATENCY_CALLS, WARMUP_CALLS = 2000, 50
 BASELINE = next(iter(CANDIDATES))  # the simpler model every other candidate is compared against
+# Each note reads its size from the fitted classifier, so it can't go stale if settings change.
 NOTES = {
-    "logreg": "One weight per field plus an intercept. Each score is a weighted sum, so a decision "
-              "can be read off the weights, though the fields are anonymised PCA components.",
-    "hgb": "100 trees (default, early stopping off). Non-linear; explaining a single decision "
-           "needs a tool such as SHAP.",
+    "logreg": lambda clf: f"{clf.coef_.size} weights plus an intercept. Each score is a weighted sum, so a "
+                          "decision can be read off the weights, though the fields are anonymised PCA components.",
+    "hgb": lambda clf: f"{clf.n_iter_} trees (early stopping off). Non-linear; explaining a single decision "
+                       "needs a tool such as SHAP.",
 }
 
 
-def latest_run(name: str) -> str:
+def latest_run(name: str) -> pd.Series:
     runs = mlflow.search_runs(
         experiment_names=[EXPERIMENT],
         filter_string=f"params.candidate = '{name}' and attributes.status = 'FINISHED'",
@@ -47,7 +49,18 @@ def latest_run(name: str) -> str:
     )
     if runs.empty:
         sys.exit(f"No finished '{name}' run in experiment '{EXPERIMENT}'. Run: uv run scripts/train.py")
-    return runs.run_id[0]
+    return runs.iloc[0]
+
+
+def latest_runs() -> dict[str, str]:
+    """Run ID of each candidate's latest run, refusing to mix training sessions: if train.py stopped
+    partway, the newest runs would otherwise pair a fresh model with a stale one."""
+    runs = {name: latest_run(name) for name in CANDIDATES}
+    sessions = {name: run.get("params.session") for name, run in runs.items()}
+    if None in sessions.values() or len(set(sessions.values())) > 1:
+        sys.exit(f"The latest runs come from different training sessions {sessions}. "
+                 "Run: uv run scripts/train.py")
+    return {name: run.run_id for name, run in runs.items()}
 
 
 def load_model(run_id: str):
@@ -84,8 +97,7 @@ def window_metrics(y: np.ndarray, scores: np.ndarray) -> dict:
     }
 
 
-def evaluate(name: str, windows: dict[str, pd.DataFrame]) -> dict:
-    run_id = latest_run(name)
+def evaluate(run_id: str, windows: dict[str, pd.DataFrame]) -> dict:
     model, size = load_model(run_id)
     y = {w: windows[w][LABEL].to_numpy() for w in ("validation", "test")}
     scores = {w: model.predict_proba(windows[w][FEATURES])[:, 1] for w in ("validation", "test")}
@@ -94,6 +106,7 @@ def evaluate(name: str, windows: dict[str, pd.DataFrame]) -> dict:
     return {
         "run_id": run_id,
         "size": size,
+        "clf": model[-1],
         "scores": scores["test"],
         "val": window_metrics(y["validation"], scores["validation"]),
         "test": window_metrics(y["test"], scores["test"]),
@@ -174,7 +187,8 @@ def write_report(results: dict[str, dict], windows: dict[str, pd.DataFrame]) -> 
         table(["Model", "AP", f"Frauds caught (of {frauds})", "Precision", "Recall", "ROC-AUC (ref.)"],
               [[n, f"{r['test']['ap']:.3f}", r["test"]["caught"], pct(r["test"]["precision"]),
                 pct(r["test"]["recall"]), f"{r['test']['roc_auc']:.3f}"] for n, r in results.items()]),
-        "Paired bootstrap 95% range of the difference (2,000 resamples of the test window, seed 0):\n\n"
+        f"Paired bootstrap 95% range of the difference ({BOOTSTRAP_RESAMPLES:,} resamples of the test window, "
+        f"seed {BOOTSTRAP_SEED}):\n\n"
         + comparison(results, y),
 
         "## 2. Operational view (threshold set on validation, applied to test)",
@@ -201,7 +215,7 @@ def write_report(results: dict[str, dict], windows: dict[str, pd.DataFrame]) -> 
 
         "## 5. Complexity and explainability",
         table(["Model", "Saved model size", "Notes"],
-              [[n, f"{r['size'] / 1024:,.0f} KB", NOTES[n]] for n, r in results.items()]),
+              [[n, f"{r['size'] / 1024:,.0f} KB", NOTES[n](r["clf"])] for n, r in results.items()]),
     ]
     REPORT.write_text("\n\n".join(sections) + "\n")
 
@@ -213,8 +227,8 @@ def main() -> int:
     windows = split(load(DEST))
     use_local_store()
     results = {}
-    for name in CANDIDATES:
-        results[name] = evaluate(name, windows)
+    for name, run_id in latest_runs().items():
+        results[name] = evaluate(run_id, windows)
         log_to_mlflow(results[name])
         print(f"Evaluated {name} (run {results[name]['run_id'][:8]})")
     write_report(results, windows)

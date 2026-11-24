@@ -7,6 +7,8 @@ import numpy as np
 # Sample figure chosen by the owner, not client-provided: just above the 0.173% fraud rate, so the
 # budget doesn't cap recall on its own. See CONTEXT.md "Evaluation Framework".
 BUDGET = 0.002
+BOOTSTRAP_RESAMPLES = 2000
+BOOTSTRAP_SEED = 0
 
 
 def alerts(n: int) -> int:
@@ -49,8 +51,8 @@ def paired_bootstrap(
     a: np.ndarray,
     b: np.ndarray,
     metric: Callable[[np.ndarray, np.ndarray], float],
-    n: int = 2000,
-    seed: int = 0,
+    n: int = BOOTSTRAP_RESAMPLES,
+    seed: int = BOOTSTRAP_SEED,
 ) -> tuple[float, float]:
     """95% range of metric(b) - metric(a). Both models are scored on the same resampled rows, so
     the range reflects the gap between them rather than how hard each resample happens to be."""
