@@ -2,11 +2,26 @@
 name = "payguard"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "mlflow>=3.18.0",
+    "numpy>=2.5.5",
+    "pandas>=3.1.1",
+    "scikit-learn>=1.9.1",
+]
 
 [dependency-groups]
 analysis = [
     "matplotlib>=3.11.2",
-    "numpy>=2.5.5",
-    "pandas>=3.1.1",
 ]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Lets tests reuse the hash-checked data path from scripts/get_data.py.
+pythonpath = ["scripts"]
