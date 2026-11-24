@@ -69,7 +69,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Cut: third-party mirror download.** Kaggle's public download works without an account, so a second automatic source was redundant. If Kaggle ever requires sign-in, the manual route covers it.
 - **Possible additions if time allows: Kafka streaming.** Either a local Kafka pipeline, or Kafka beside the API for decision logging and monitoring. A request/response API matches the authorisation path, so the prototype starts there.
 - **Cut: Jupyter notebooks.** The presentation shows findings, not analysis code, so data understanding is a script that writes a Markdown report. Model comparison uses MLflow's UI. This leaves no Jupyter tooling in the project.
-- **Possible addition: deduplicate exact copies for fitting and threshold setting only** (train and validation windows), keeping them in test and the replay. 13 distinct frauds appear 32 times, so they carry extra weight in training. Not done for now: the gain is unproven, and deduplication normally happens upstream, at ingestion, by transaction ID.
+- **Possible addition: deduplicate exact copies for fitting and threshold setting only** (train and validation windows), keeping them in test and the replay. 13 distinct frauds appear 32 times across the data (9 extra fraud copies in the training window), so they carry extra weight. Not done for now: the gain is unproven, and deduplication normally happens upstream, at ingestion, by transaction ID.
 - **Cut: forward-chaining validation.** With one daily cycle of data, changes from one fold to the next can't be told apart from time-of-day effects. It's the recommended method once the client provides several weeks of history, because it shows how a model holds up over time and whether retraining on fresher data helps.
 - **Out of scope: feature store.** It's how enterprises centralise feature definitions, but the prototype's single shared code path covers the same need at this scale.
 
@@ -77,7 +77,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - The data covers only about 2 days of transactions, so we can't simulate realistic feedback delay (the time before fraud labels arrive). The windows have no gap between them for that reason: a gap of a few hours would cost frauds without modelling a delay of days.
 - There's no card or customer ID, so card-level metrics (such as card precision top-k, which counts each compromised card once) and history (velocity) features aren't possible.
 - There's no transaction ID, so exact duplicates (same values, same second) can't be told apart as retries, double submissions or export errors. Fraud is 10x more common inside these duplicate groups (1.73% against 0.173%), which suggests card-testing behaviour. Using that as a live signal needs state about earlier transactions, which is out of scope for the same reason as velocity features.
-- Identical genuine transactions recur at different times, some across the train/test boundary (805 groups), consistent with recurring payments. The model sees these patterns in training, as it would live.
+- Identical genuine transactions recur at different times, some across window boundaries (805 of 4,383 groups span more than one window), consistent with recurring payments. The model sees these patterns in training, as it would live.
 - The features are anonymised with PCA, which limits feature engineering and how well we can explain decisions.
 
 ## Problem 2: Complaint Triage
