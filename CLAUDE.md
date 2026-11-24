@@ -15,6 +15,7 @@ Treat the provided data as if it belongs to the client. See CONTEXT.md for full 
 ## Collaboration Rules
 - The project owner (solutions architect) makes every decision. Claude recommends options and doesn't decide alone.
 - Review all code with the owner before finalising it. Flag code that introduces a new format or a new kind of code for the project.
+- Code steps start in plan mode: Claude proposes, the owner approves the plan via ExitPlanMode, then building begins.
 
 ## Planning Approach
 Use this alongside standard planning practice. It's a guideline, not a replacement.
