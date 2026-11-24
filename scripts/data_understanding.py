@@ -15,6 +15,8 @@ from get_data import DEST, SHA256, is_valid
 REPORT = Path(__file__).resolve().parents[1] / "reports" / "data_understanding.md"
 FIGURES = REPORT.parent / "figures"
 DAY = 86_400
+# KS reporting cut-offs chosen for this report, not industry standards.
+DRIFT_KS, STRONG_KS, WEAK_KS = 0.2, 0.7, 0.2
 
 
 def load(path: Path) -> pd.DataFrame:
@@ -111,11 +113,11 @@ def drift(df: pd.DataFrame) -> tuple[str, str]:
     genuine = df[df.Class == 0]
     scores = pd.Series({f: ks(genuine[genuine.day == 1][f], genuine[genuine.day == 2][f]) for f in features(df)})
     scores = scores.sort_values(ascending=False)
-    shifted = scores[scores > 0.2]
+    shifted = scores[scores > DRIFT_KS]
 
     fig, ax = plt.subplots(figsize=(9, 3.5))
     ax.bar(scores.index, scores.values, color="tab:purple")
-    ax.axhline(0.2, color="grey", linestyle="--")
+    ax.axhline(DRIFT_KS, color="grey", linestyle="--")
     ax.set_ylabel("KS, day 1 vs day 2")
     ax.tick_params(axis="x", rotation=90)
     figure = save(fig, "drift_by_feature.png")
@@ -126,7 +128,7 @@ def drift(df: pd.DataFrame) -> tuple[str, str]:
 {figure}
 
 KS statistic per feature, comparing day 1 with day 2 for genuine transactions only, so a change in fraud share can't
-cause it (0 = same distribution, 1 = no overlap). {len(shifted)} features are above 0.2: {", ".join(shifted.index)}.
+cause it (0 = same distribution, 1 = no overlap). {len(shifted)} features are above {DRIFT_KS}: {", ".join(shifted.index)}.
 A model trained on day 1 meets a slightly different population on day 2, as it would in production. A random split mixes
 both days into training and would overstate live performance.
 
@@ -138,7 +140,7 @@ both days into training and would overstate live performance.
 def separation(df: pd.DataFrame) -> tuple[str, str]:
     fraud, genuine = df[df.Class == 1], df[df.Class == 0]
     scores = pd.Series({f: ks(genuine[f], fraud[f]) for f in features(df)}).sort_values(ascending=False)
-    strong = scores[scores > 0.7]
+    strong = scores[scores > STRONG_KS]
 
     fig, ax = plt.subplots(figsize=(9, 3.5))
     ax.bar(scores.index, scores.values, color="tab:green")
@@ -146,13 +148,13 @@ def separation(df: pd.DataFrame) -> tuple[str, str]:
     ax.tick_params(axis="x", rotation=90)
     figure = save(fig, "separation_by_feature.png")
 
-    summary = (f"**{len(strong)} features each separate fraud strongly on their own** (KS above 0.7, led by "
+    summary = (f"**{len(strong)} features each separate fraud strongly on their own** (KS above {STRONG_KS}, led by "
                f"{', '.join(strong.index[:3])}).")
     body = f"""## 4. Which features separate fraud
 {figure}
 
-KS statistic per feature, comparing fraud with genuine transactions. {len(strong)} features are above 0.7
-({", ".join(strong.index)}), and {(scores < 0.2).sum()} are below 0.2. Strong single-feature signals mean a simple model
+KS statistic per feature, comparing fraud with genuine transactions. {len(strong)} features are above {STRONG_KS}
+({", ".join(strong.index)}), and {(scores < WEAK_KS).sum()} are below {WEAK_KS}. Strong single-feature signals mean a simple model
 is a credible baseline, and any more complex model has to show it gains beyond them. This is a one-feature-at-a-time
 view: it doesn't show how features combine.
 
@@ -168,7 +170,7 @@ def amount(df: pd.DataFrame) -> tuple[str, str]:
     zeros = by_class.apply(lambda a: (a == 0).sum())
 
     fig, ax = plt.subplots(figsize=(9, 3.5))
-    bins = np.logspace(-2, np.log10(df.Amount.max()), 60)
+    bins = np.geomspace(0.01, df.Amount.max(), 60)
     # Share per bin, not density: density divides by bin width, which log bins make tiny at the low end.
     for cls, label, color in ((0, "genuine", "tab:blue"), (1, "fraud", "tab:red")):
         amounts = df[df.Class == cls].Amount.clip(lower=0.01)
