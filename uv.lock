@@ -1780,6 +1780,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "mlflow" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "scikit-learn" },
 ]
@@ -1787,7 +1788,6 @@ dependencies = [
 [package.dev-dependencies]
 analysis = [
     { name = "matplotlib" },
-    { name = "numpy" },
 ]
 dev = [
     { name = "pytest" },
@@ -1796,15 +1796,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "mlflow", specifier = ">=3.18.0" },
+    { name = "numpy", specifier = ">=2.5.5" },
     { name = "pandas", specifier = ">=3.1.1" },
     { name = "scikit-learn", specifier = ">=1.9.1" },
 ]
 
 [package.metadata.requires-dev]
-analysis = [
-    { name = "matplotlib", specifier = ">=3.11.2" },
-    { name = "numpy", specifier = ">=2.5.5" },
-]
+analysis = [{ name = "matplotlib", specifier = ">=3.11.2" }]
 dev = [{ name = "pytest", specifier = ">=9.2.0" }]
 
 [[package]]

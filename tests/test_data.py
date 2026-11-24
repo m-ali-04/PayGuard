@@ -1,10 +1,10 @@
 import pandas as pd
 import pytest
 
-from get_data import DEST, is_valid
+from get_data import DEST
 from payguard.fraud.data import LABEL, load, split
 
-pytestmark = pytest.mark.skipif(not is_valid(DEST), reason="dataset missing: run scripts/get_data.py")
+pytestmark = pytest.mark.skipif(not DEST.is_file(), reason="dataset missing: run scripts/get_data.py")
 
 
 @pytest.fixture(scope="module")

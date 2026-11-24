@@ -1,10 +1,11 @@
+import mlflow.pyfunc
 import mlflow.sklearn
 import numpy as np
 import pandas as pd
 import pytest
 
 from payguard.fraud.data import FEATURES, LABEL
-from payguard.fraud.models import CANDIDATES, COMPONENTS, TRUSTED_TYPES, preprocess
+from payguard.fraud.models import CANDIDATES, COMPONENTS, preprocess, save_options
 
 
 @pytest.fixture(scope="module")
@@ -40,7 +41,16 @@ def test_scores_ignore_column_order_and_extra_fields(fitted, raw):
     np.testing.assert_array_equal(scores(fitted, shuffled), scores(fitted, raw))
 
 
+def test_scores_need_only_the_model_fields(fitted, raw):
+    np.testing.assert_array_equal(scores(fitted, raw[FEATURES]), scores(fitted, raw))
+
+
 def test_saved_model_scores_identically(fitted, raw, tmp_path):
-    mlflow.sklearn.save_model(fitted, tmp_path / "model", skops_trusted_types=TRUSTED_TYPES)
-    reloaded = mlflow.sklearn.load_model(str(tmp_path / "model"))
-    np.testing.assert_array_equal(scores(reloaded, raw), scores(fitted, raw))
+    """Saves the way scripts/train.py does, then scores live-shaped rows (no Time, no label)
+    through both loaders: the sklearn one and MLflow's generic one used by serving tools."""
+    live = raw[FEATURES]
+    path = str(tmp_path / "model")
+    mlflow.sklearn.save_model(fitted, path, **save_options(fitted, live.head(5)))
+    expected = scores(fitted, raw)
+    np.testing.assert_array_equal(scores(mlflow.sklearn.load_model(path), live), expected)
+    np.testing.assert_array_equal(np.asarray(mlflow.pyfunc.load_model(path).predict(live))[:, 1], expected)

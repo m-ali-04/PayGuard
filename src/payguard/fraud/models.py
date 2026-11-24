@@ -1,6 +1,8 @@
 """The shortlisted fraud models. Each is one Pipeline that carries its own preprocessing,
 so the saved artifact is the single path from a raw transaction to a score."""
 import numpy as np
+import pandas as pd
+from mlflow.models import infer_signature
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
@@ -38,7 +40,17 @@ def hgb() -> Pipeline:
 
 CANDIDATES = {"logreg": logreg, "hgb": hgb}
 
-# MLflow saves sklearn models with skops, which refuses types not on its safe list. HGB's tree
-# object isn't on it because a tampered file could crash predict(); we only load models we
-# trained ourselves, so it's trusted explicitly. Pass this to every MLflow save.
-TRUSTED_TYPES = ["sklearn.ensemble._hist_gradient_boosting.predictor.TreePredictor"]
+def save_options(model: Pipeline, example: pd.DataFrame) -> dict:
+    """Arguments for every MLflow save, so training and tests store models the same way.
+    `example` holds a few live-shaped rows (model fields only) and records the input contract."""
+    return {
+        "input_example": example,
+        # Inferred from predict_proba explicitly: MLflow would otherwise infer the output from
+        # predict and record 0/1 labels instead of fraud probabilities.
+        "signature": infer_signature(example, model.predict_proba(example)),
+        "pyfunc_predict_fn": "predict_proba",
+        # MLflow saves sklearn models with skops, which refuses types not on its safe list. HGB's
+        # tree object isn't on it because a tampered file could crash predict(); we only load
+        # models we trained ourselves, so it's trusted explicitly.
+        "skops_trusted_types": ["sklearn.ensemble._hist_gradient_boosting.predictor.TreePredictor"],
+    }

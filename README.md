@@ -28,7 +28,7 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
 5. **Train the shortlisted fraud models.** This fits each candidate on the training window and logs it to a local MLflow store (`mlflow.db`, `mlruns/`, both gitignored):
    ```bash
    uv run scripts/train.py
-   uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # browse runs at http://127.0.0.1:5000
+   uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # from the repo root; browse at http://127.0.0.1:5000
    ```
 6. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
    ```bash
@@ -60,7 +60,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Class imbalance:** no resampling. Logistic regression weights the rare fraud class up (`class_weight="balanced"`); the trees use defaults.
 - **Features: the 28 anonymised components and Amount (log-transformed).** `Time` counts seconds since the file started, so it can't be computed live, and it's dropped.
 - **Preprocessing lives inside each model's saved pipeline**, so the API loads one artifact that carries its own transforms. The pipeline picks its input fields by name, so a raw transaction scores the same in any field order or with extra fields; tests check this, and that a saved and reloaded model gives identical scores.
-- **Models are logged with MLflow** in its default safe format (skops), with the pinned dependency versions and the raw-input contract recorded beside each model. Code lives in `src/payguard/fraud/` (`data.py` for the windows, `models.py` for the pipelines), shared by training, tests and, later, the API.
+- **Models are logged with MLflow** in its default safe format (skops), with the pinned dependency versions and the model's contract recorded beside it: the 29 model fields in (no `Time`, which can't be computed live), fraud probabilities out. Code lives in `src/payguard/fraud/` (`data.py` for the windows, `models.py` for the pipelines), shared by training, tests and, later, the API.
 - **No training-serving skew by design:** training and serving share one preprocessing code path, and a parity test checks the API's scores against the offline scores.
 
 ### Evaluation
