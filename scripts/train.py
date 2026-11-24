@@ -6,6 +6,7 @@ No scores are computed here: the decision report evaluates the logged models.
 """
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import mlflow
@@ -31,11 +32,12 @@ def use_local_store() -> None:
         # MLflow only soft-deletes, so the name stays taken. Not restored automatically,
         # since that would quietly undo the deletion.
         sys.exit(f"Experiment '{EXPERIMENT}' is deleted. Restore it in the MLflow UI, or purge it "
-                 "from the repo root with: uv run mlflow gc --backend-store-uri sqlite:///mlflow.db")
+                 "from the repo root with: uv run mlflow gc --backend-store-uri sqlite:///mlflow.db "
+                 "--tracking-uri sqlite:///mlflow.db")
     mlflow.set_experiment(EXPERIMENT)
 
 
-def train(name: str, train_df: pd.DataFrame) -> None:
+def train(name: str, train_df: pd.DataFrame, session: str) -> None:
     with mlflow.start_run(run_name=name):
         model = CANDIDATES[name]()
         start = time.perf_counter()
@@ -43,6 +45,8 @@ def train(name: str, train_df: pd.DataFrame) -> None:
         mlflow.log_metric("fit_seconds", time.perf_counter() - start)
         mlflow.log_params({
             "candidate": name,
+            # Shared by every run of one train.py call, so the report never pairs runs from different calls.
+            "session": session,
             "train_window_hours": WINDOWS["train"],
             "train_rows": len(train_df),
             "train_frauds": int(train_df[LABEL].sum()),
@@ -58,8 +62,9 @@ def main() -> int:
         return 1
     train_df = split(load(DEST))["train"]
     use_local_store()
+    session = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     for name in CANDIDATES:
-        train(name, train_df)
+        train(name, train_df, session)
         print(f"Logged {name} to experiment '{EXPERIMENT}'")
     return 0
 

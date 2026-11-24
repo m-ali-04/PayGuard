@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from payguard.fraud.data import FEATURES, LABEL
-from payguard.fraud.models import CANDIDATES, COMPONENTS, preprocess, save_options
+from get_data import DEST
+from payguard.fraud.data import FEATURES, LABEL, load, split
+from payguard.fraud.models import CANDIDATES, COMPONENTS, hgb, preprocess, save_options
 
 
 @pytest.fixture(scope="module")
@@ -54,3 +55,13 @@ def test_saved_model_scores_identically(fitted, raw, tmp_path):
     expected = scores(fitted, raw)
     np.testing.assert_array_equal(scores(mlflow.sklearn.load_model(path), live), expected)
     np.testing.assert_array_equal(np.asarray(mlflow.pyfunc.load_model(path).predict(live))[:, 1], expected)
+
+
+@pytest.mark.skipif(not DEST.is_file(), reason="dataset missing: run scripts/get_data.py")
+def test_hgb_training_does_not_saturate_on_client_data():
+    """With sklearn's default l2_regularization=0, training diverged on the client's training window
+    and hundreds of scores hit exactly 1.0, so the top alerts couldn't be ranked. Synthetic data
+    doesn't reproduce it, hence the real window."""
+    train = split(load(DEST))["train"]
+    s = scores(hgb().fit(train, train[LABEL]), train)
+    assert 0 < s.min() and s.max() < 1

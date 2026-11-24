@@ -35,7 +35,13 @@ def hgb() -> Pipeline:
     # The default early stopping holds out a random 10% of training rows, which would shuffle
     # time inside the training window. log1p doesn't change trees; it's kept so both models
     # share one feature definition.
-    return make_pipeline(preprocess(), HistGradientBoostingClassifier(early_stopping=False, random_state=0))
+    # l2_regularization is a stability guard, not tuning: with sklearn's default of 0, leaves holding
+    # a few rare-class rows divide by a near-zero hessian sum, and on this data training diverged
+    # (log-odds past 300,000, scores stuck at exactly 1.0). 1.0 is XGBoost's default for the same term.
+    return make_pipeline(
+        preprocess(),
+        HistGradientBoostingClassifier(early_stopping=False, l2_regularization=1.0, random_state=0),
+    )
 
 
 CANDIDATES = {"logreg": logreg, "hgb": hgb}
