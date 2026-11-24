@@ -123,4 +123,4 @@ These are guidelines that add to normal planning practice (including plan mode).
 - Private GitHub repo: `m-ali-04/PayGuard`. CLAUDE.md and CONTEXT.md are committed, following standard practice. CLAUDE.local.md stays local, with no backup (owner's decision).
 - Workflow: one branch and one PR per step, with conventional commits. Claude runs a code review on each PR and posts the findings, then the owner reviews and merges. Merging means the code is final. At milestones, the owner can run `/code-review ultra`.
 
-*(CLAUDE.md candidate, waiting on confirmation)*
+*(Added to CLAUDE.md via PR)*
