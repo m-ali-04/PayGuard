@@ -7,5 +7,6 @@ dependencies = []
 [dependency-groups]
 analysis = [
     "matplotlib>=3.11.2",
+    "numpy>=2.5.5",
     "pandas>=3.1.1",
 ]

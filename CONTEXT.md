@@ -77,6 +77,7 @@ Running log of context provided about the project. Items that belong in CLAUDE.m
 - 7 features separate fraud strongly on their own (KS > 0.7: V14, V10, V12, V4, V11, V17, V3), so a simple baseline is credible.
 - 37% of frauds are ≤ 1.00 against 11% of genuine. Amount alone separates weakly and needs a scale transform for scale-sensitive models.
 - The 0.2 and 0.7 KS cut-offs are reporting thresholds Claude chose, not industry standards.
+- **Decision (2026-11-24): pytest is on hold.** `ks()` was checked once against SciPy's `ks_2samp` (exact match). Tests will be added with the prototype code (preprocessing, parity test).
 
 ### Metrics
 - **Deferred (2026-11-24).** Still open: (1) which metric picks the model (PR-AUC, or recall at a fixed alert budget), (2) how to set the alert budget (one assumed value or a range; needs research on typical issuer review capacity), (3) when a gain counts as real (for example, bootstrap confidence intervals). Latency is a pass/fail gate, not a scored metric. Cost-weighting and calibration come later.
