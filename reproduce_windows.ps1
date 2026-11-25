@@ -6,19 +6,24 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-# uv, Python, the package cache and the Kaggle CLI's environment and config would otherwise land in the
-# user profile, and a Python already on the machine could be picked up instead of uv's own 3.12.
+# uv, the package cache and the Kaggle CLI's environment and config would otherwise land in the user profile.
 $tools = Join-Path $PSScriptRoot ".tools"
 $env:UV_INSTALL_DIR = "$tools\bin"
 $env:UV_NO_MODIFY_PATH = "1"
 $env:UV_DISABLE_UPDATE = "1"   # no updater receipt in %LOCALAPPDATA%
 $env:UV_CACHE_DIR = "$tools\cache"
-$env:UV_PYTHON_INSTALL_DIR = "$tools\python"
-$env:UV_PYTHON_PREFERENCE = "only-managed"
 $env:UV_TOOL_DIR = "$tools\tools"
 $env:KAGGLE_CONFIG_DIR = "$tools\kaggle"
 $env:MLFLOW_DISABLE_TELEMETRY = "true"   # MLflow otherwise writes an installation ID to the profile
 $env:Path = "$tools\bin;$env:Path"
+$ProgressPreference = "SilentlyContinue"   # 5.1's download progress bar slows Invoke-WebRequest badly
+
+# uv's own Python builds are unsigned and Smart App Control blocks them (astral-sh/uv#22869), so every
+# uv command, uvx included, uses python.org's signed build instead, unpacked from its NuGet zip.
+$pythonUrl = "https://api.nuget.org/v3-flatcontainer/python/3.12.10/python.3.12.10.nupkg"
+$pythonSha256 = "0eb85c2dfccccf1b17352de4c397f69194035b7d37149eacc16f1147d93de3b8"
+$env:UV_PYTHON = "$tools\python-org\tools\python.exe"
+$env:UV_PYTHON_DOWNLOADS = "never"   # fail loudly rather than fall back to an unsigned build
 
 # Windows PowerShell 5.1 doesn't stop on a failing native command, so every uv call is checked here.
 function Invoke-Step([string]$Title, [string[]]$UvArgs) {
@@ -31,6 +36,16 @@ function Invoke-Step([string]$Title, [string[]]$UvArgs) {
 if (-not (Test-Path "$tools\bin\uv.exe")) {
     Write-Host "== Installing uv into .tools ==" -ForegroundColor Cyan
     Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
+}
+
+if (-not (Test-Path $env:UV_PYTHON)) {
+    Write-Host "== Installing Python 3.12.10 (python.org, signed) into .tools ==" -ForegroundColor Cyan
+    Invoke-WebRequest $pythonUrl -OutFile "$tools\python.zip"
+    if ((Get-FileHash "$tools\python.zip" -Algorithm SHA256).Hash -ne $pythonSha256) {
+        throw "The Python download failed its SHA-256 check"
+    }
+    Expand-Archive "$tools\python.zip" "$tools\python-org" -Force
+    Remove-Item "$tools\python.zip"
 }
 
 Invoke-Step "Install dependencies" @("sync")

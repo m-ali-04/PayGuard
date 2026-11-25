@@ -10,7 +10,7 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
 ```powershell
 powershell -ExecutionPolicy Bypass -File reproduce_windows.ps1
 ```
-*Not yet tested on a Windows machine.* Replay latency on Windows isn't comparable with the Linux figures below.
+It uses python.org's signed Python 3.12.10 (from its NuGet package, hash-checked) instead of the build uv downloads: uv's Windows builds are unsigned, and Smart App Control blocks them ([astral-sh/uv#22869](https://github.com/astral-sh/uv/issues/22869)). The first import of the packages is slow while Windows checks each new file. *A full run on Windows is still pending*; replay latency there isn't comparable with the Linux figures below.
 
 1. **Install uv** (the Python package and project manager):
    ```bash
