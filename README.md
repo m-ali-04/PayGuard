@@ -38,6 +38,11 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
    ```bash
    uv run uvicorn payguard.fraud.api:app   # from the repo root; interactive docs at http://127.0.0.1:8000/docs
    ```
+8. **Replay the client's traffic through the API** (in a second terminal, with the API running). The default replays the demo slice, 42:40–43:20 at 4× (~10 minutes), with a live panel, then checks parity against the offline model and writes `reports/replay_report.md`. Run nothing heavy on the machine meanwhile: the replay, API and model share it, so other work shows up as latency.
+   ```bash
+   uv run scripts/replay.py
+   uv run scripts/replay.py --start 36:00 --length 720 --speed 60   # the whole test window (requests overlap at this speed)
+   ```
    Score one transaction (the 28 components and Amount; other fields are ignored):
    ```bash
    curl -s http://127.0.0.1:8000/v1/score -H 'content-type: application/json' \
@@ -69,6 +74,8 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Latency baseline: p99 ≤ 50 ms per transaction.** This is the lenient end of the published 10–50 ms range for fraud scoring, and improving on it is a goal if we have capacity.
 - **Synchronous scoring, one transaction at a time.** Batch scoring can't decide on a transaction inside its authorisation window. *Review later:* server-side micro-batching.
 - **Real-time simulation: replay to a scoring API.** A script sends the client's transactions in time order to a local scoring service, and we measure latency per request.
+- **Replay demo: the 40 minutes with the most frauds (42:40–43:20, 17 frauds) at 4× real time (~10 minutes), with a live terminal panel.** The client's traffic averages one transaction every ~450 ms there, so at 4× even the busiest second's transactions arrive ~23 ms apart, above the ~10 ms a request takes: requests don't overlap, because load testing is out of scope. Requests go out on schedule without waiting for earlier answers, as real traffic does. Timestamps are whole seconds, so each second's transactions are spread evenly across it rather than sent as one burst, which would be an artefact of the timestamp resolution. A fraud-dense slice runs above average, so the report shows the whole-window figures beside it.
+- **Parity check on real data:** after each replay, the served scores are compared with the same MLflow run's model loaded offline (expected: identical scores and decisions).
 - **Data understanding** ([report](reports/data_understanding.md)): about 211 frauds on day 2, so small model differences are noise. Several features drift between the two days, which supports a time split. Seven features separate fraud strongly on their own, so a simple baseline is credible. There are 1,081 exact duplicates, all within the same second. Analysis is look-only; no data is changed.
 - **Shortlist: logistic regression (interpretable baseline) and gradient-boosted trees** (scikit-learn's `HistGradientBoostingClassifier`), both with default settings except two stability settings on the boosted trees. Early stopping is off, because it holds out a random sample of training rows and would shuffle time. `l2_regularization=1.0` (XGBoost's default for the same term), because with sklearn's default of 0 its training diverged on this data: scores stuck at exactly 1.0, so it couldn't rank its top alerts. Twelve model families were considered. Random forest usually trails boosted trees; k-NN, kernel SVM and neural networks fit poorly here (latency, training cost, tuning); sequence and graph models need card history the data doesn't have.
 - **Class imbalance:** no resampling. Logistic regression weights the rare fraud class up (`class_weight="balanced"`); the trees use defaults.
@@ -106,6 +113,17 @@ Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv
 - **Budget beyond 0.2% buys little:** checking 0.3% of transactions catches about 92 of 115, and 5% only about 100. The last ~20% of frauds look genuine to both models, and catching them would take new information such as card history.
 - **The night-set threshold is too strict by day:** live, both models flag about half the 0.2% budget on the test window. Both genuine and fraud scores run lower by day, so a single fixed threshold misses daytime fraud. See Limitations.
 
+**Replay through the API** ([replay report](reports/replay_report.md), regenerate with `uv run scripts/replay.py`): the demo slice, 42:40–43:20 at 4× real time, 5,351 transactions and 17 frauds.
+
+| | Replay (API) | Offline, same slice | Offline, whole test window |
+|---|---|---|---|
+| Caught / false alerts / missed | 14 / 1 / 3 | 14 / 1 / 3 | 82 / 14 / 33 |
+| Recall | 82.4% | 82.4% | 71.3% |
+
+- **Parity holds on real data:** all 5,351 served scores equal the offline scores bit for bit, and no alert decision differs, so serving adds no skew.
+- **End-to-end latency is within the limit:** p50 12.2 ms, p99 25.6 ms (limit 50 ms), 1 request in 5,351 above 50 ms (max 76.7 ms), measured from request sent to answer received, with the client on the same machine. Latency figures depend on the hardware they're run on (here WSL2 on 22 logical cores) and on what else runs at the same time. Compared with the model alone (p99 ~14 ms), the HTTP round trip, request validation and building the input row add roughly 6–12 ms.
+- **The slice runs above average** (82% recall vs 71% on the whole window), because it was chosen as the most fraud-dense 40 minutes.
+
 ### Cut / Added
 - **Cut: data versioning (DVC).** The data is one fixed source file, so a hash-checked download script gives the same guarantee without needing a storage remote. If the client's data starts changing over time, revisit this with DVC or the client's own data platform.
 - **Cut: third-party mirror download.** Kaggle's public download works without an account, so a second automatic source was redundant. If Kaggle ever requires sign-in, the manual route covers it.
@@ -119,7 +137,9 @@ Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv
 - **Cut: SHAP explanations.** The client didn't ask for explainability, and per-decision attributions would point to anonymised PCA fields with no business meaning. Revisit if the client or a regulator requires explanations.
 - **Possible addition: time-of-day handling,** once several weeks of data show the day/night pattern regularly. From cheapest to most involved: separate thresholds for busy and quiet hours, a time-of-day feature, or separate models for each (each would train on fewer frauds). Each option would be tested through the decision report.
 - **Cut: authentication, rate limiting and request logging on the API.** They belong to the client's gateway and platform; request logging and monitoring are covered by the Kafka addition above.
-- **Cut: a browser demo page.** The interactive docs page (`/docs`) already lets anyone send a transaction and see the decision; the live demo is the replay.
+- **Cut: a browser demo page.** The interactive docs page (`/docs`) already lets anyone send a transaction and see the decision; the live demo is the replay's terminal panel.
+- **Suggestion: one inference thread per request (`OMP_NUM_THREADS=1`), if replay results on other hardware differ greatly from ours.** In a short probe with overlapping requests it removed the slowdown and errors seen on default settings, and was slightly faster per request. It isn't adopted, because the demo and the reported results were measured on default settings and it hasn't been tested under the same conditions.
+- **Possible addition: Grafana + Prometheus** for live dashboards of scores, alerts and latency. It's the industry monitoring stack, but it needs Docker and a metrics endpoint, so the prototype uses a terminal panel. It pairs with the Kafka/monitoring addition above.
 - **Out of scope: feature store.** It's how enterprises centralise feature definitions, but the prototype's single shared code path covers the same need at this scale.
 
 ### Limitations
@@ -129,7 +149,7 @@ Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv
 - Identical genuine transactions recur at different times, some across window boundaries (805 of 4,383 groups span more than one window), consistent with recurring payments. The model sees these patterns in training, as it would live.
 - The threshold is set on the night half of day 2 and tested on the daytime half. Scores run lower by day, so the fixed threshold flags about half the budget and misses daytime fraud. With 48 hours, drift can't be told apart from time-of-day effects. In production, the threshold would be recalibrated regularly on a representative period.
 - The features are anonymised with PCA, which limits feature engineering and how well we can explain decisions.
-- The API runs as a single local process with no authentication. End-to-end latency through the API is measured by the replay step; the decision report's figures are for the model alone.
+- The API runs as a single local process with no authentication. The replay measures latency at a realistic pace without overlapping requests; capacity under concurrent load isn't tested (out of scope). On default settings, overlapping requests make each model call compete for every core (OpenMP threads), and the API falls behind. See the suggestion on inference threads under Cut / Added.
 
 ## Problem 2: Complaint Triage
 
