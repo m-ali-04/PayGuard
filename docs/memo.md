@@ -71,7 +71,7 @@ Phases move on gates, not dates. Any phase rolls back with a Git change: the mod
 | From | What we need | What it unlocks |
 |---|---|---|
 | Data engineering | Card token, transaction ID, merchant and channel on every authorisation; definitions of any upstream feature transformation | Velocity features, deduplication, Kafka partitioning; no training-serving skew |
-| | A chargeback feed and its typical delay | Labels; retraining cadence |
+| Data engineering | A chargeback feed and its typical delay | Labels; retraining cadence |
 | Fraud operations | Analyst review capacity; the cost of a missed fraud against a false alert; targets for precision, false declines and complaints | The real alert budget, set on cost and capacity (replacing our assumed 0.2%); rollout gates |
 | Payments | Peak traffic volume; the fallback when scoring times out; whether step-up checks are supported | Load test and sizing; phase 2 actions |
 | IT / platform | Current skills in Kafka, Flink, Redis and EKS; a private link from the payment switch | Who runs what, and what training is needed |
