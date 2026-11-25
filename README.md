@@ -7,6 +7,18 @@ Two prototypes for PayGuard: real-time fraud scoring and LLM complaint triage.
 
 [REPORT.md](REPORT.md) explains the approach, results, limitations and our questions for PayGuard. The [memo](docs/memo.md) ([PDF](docs/memo.pdf)) sets out the production design for fraud scoring.
 
+## Approach, results and what we cut
+
+**Fraud scoring** ([REPORT §3](REPORT.md#3-fraud-detection))
+- **Approach.** A time-ordered split: train on day 1, set the threshold on the night of day 2, test on its daytime half (36–48 h), because the days drift and a random split would train on future transactions. With fraud at 0.17%, accuracy is meaningless, so models are judged by average precision and by frauds caught within an alert budget of 0.2% of transactions (our assumption, pending PayGuard's review capacity). A logistic-regression baseline against scikit-learn's gradient-boosted trees, both on default settings.
+- **Results.** Average precision 0.73 against 0.68. At a threshold of 0.357, fixed on validation, the trees caught 82 of 115 test frauds with 14 false alerts; the baseline caught 68 at its own fixed threshold. On ranking alone the gain is within noise on 115 frauds. Through the API: p99 25.6 ms against a 50 ms limit, with served scores identical to offline.
+- **Cut.** Hyperparameter tuning and ensembling, resampling, deep learning, a second boosting library, SHAP explanations and load testing. Velocity features need card IDs the data doesn't have.
+
+**Complaint triage** ([REPORT §4](REPORT.md#4-complaint-triage))
+- **Approach.** The model returns category, urgency, five flags, a summary and a confidence note under a JSON schema, with a re-ask and a fallback to a person when an answer is invalid. Code, not the model, decides `requires_human`, from CFPB tags, flags, high urgency, an unclear category and legal words. Gemini labelled 80 complaints from our labelling guide as the reference (30 dev, 50 test), and we checked the 30 dev labels by hand. Recall on `requires_human` comes first.
+- **Results.** On the 50 test complaints, 23 of the 27 that need a person reached one (25 of 27 with a legal-words rule added after seeing the misses), and 20 of the 22 routed with no person reached the right team. 4 of 10 prompt-injection tests passed: the model follows instructions hidden in complaint text, so a defence must come before any complaint skips a person. About $10–37 a month at 50,000 complaints on a small hosted model.
+- **Cut.** Fine-tuning and a chatbot (as the brief says), a synthetic set for rare flags, JSON output (a CSV with the same fields plus review reasons), enforcing 1–2-sentence summaries, and injection mitigations, which a rollout would need first.
+
 ## Requirements
 
 - **Linux, or Windows through WSL2.** Tested on Ubuntu under WSL2 on Windows 11. Native Windows isn't supported: with Smart App Control on, Windows blocks the unsigned compiled files that uv's Python and the scientific packages ship. On Windows, run `wsl --install` in an administrator PowerShell, restart, open Ubuntu, and clone the repo into the Linux home folder (for example `~/PayGuard`), not under `/mnt/c`, which is much slower from WSL. The API is reachable from a Windows browser at the same `127.0.0.1` addresses.

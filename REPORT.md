@@ -136,7 +136,7 @@ Full figures are in the [decision report](reports/fraud/decision_report.md) and 
 | 1% | 94 | 95 |
 | 5% | 98 | 101 |
 
-Going from 0.3% to 5% buys 5–8 frauds for about 4,300 more genuine checks†. The last ~20% of frauds look genuine to both models: catching 90% would mean checking 11% of transactions with the trees, or 28% with logistic regression†. Catching them needs new information, such as card history. Above 0.2% the two models swap places, within noise.
+Going from 0.3% to 5% buys 7–8 frauds for about 4,300 more genuine checks†. The last ~20% of frauds look genuine to both models: catching 90% would mean checking 11% of transactions with the trees, or 28% with logistic regression†. Catching them needs new information, such as card history. Above 0.2% the two models swap places, within noise.
 
 **The night-set threshold is too strict by day.** Live, the fixed threshold flags 0.104% of daytime transactions, about half the budget (96 alerts against 185). Scores run lower by day for genuine and fraud transactions alike: the threshold flags 0.040% of genuine transactions at night but 0.015% by day†, and catches 79% of frauds at night against 71% by day. Spending the full budget on the same window would catch 90, so the drift costs about 8 frauds. The trees hold up better than logistic regression here (71% against 59% by day).
 
@@ -147,6 +147,7 @@ Going from 0.3% to 5% buys 5–8 frauds for about 4,300 more genuine checks†. 
 Amounts are in the data's own currency, which it doesn't name. Without a ratio, we weighed errors only through the alert budget, treating a missed fraud as worse than a checked genuine transaction. A ratio from you (section 6) would let the threshold be set on cost.
 
 **Where we recommend operating:**
+- **Today: a score threshold of 0.357 on the boosted trees' scores,** the cut that flagged 0.2% of the validation window, applied unchanged. On the test window it flagged 0.104% of transactions (96 alerts, 82 frauds caught, 14 false), so it errs toward fewer alerts by day.
 - **Set the budget to what your team can review.** Our 0.2% is a placeholder (section 6). Beyond about 0.3%, extra alerts land mostly on genuine customers.
 - **Recalibrate the threshold on live traffic covering whole days,** and watch the hourly alert rate against the budget. If the day/night pattern holds over weeks, the cheapest fix is separate thresholds for busy and quiet hours, then a time-of-day feature (section 3.8).
 - **Split alerts into two bands once the cost of errors is known:** a top band precise enough for an automatic step-up or decline, and a review band for analysts. In this window, 85% of the fixed threshold's alerts were fraud. The memo phases this in (phase 2).
@@ -322,7 +323,7 @@ The reasons go into the output so reviewers see why. The policy never changes ur
 **The model: Granite 4.2 3B, run locally through Ollama** (`granite4.2:3b`, digest `40577dc168a3`, recorded in every output row). We first chose a paid hosted API, then switched to a free route. Against a free hosted tier (tight rate caps that change, complaints sent to the provider, and a key needed by anyone reproducing the run), a local model won: free, no rate limits, complaints never leave the machine, and output constrained to the schema as it's generated. A small model widens who can run the pipeline: 8 GB of memory is enough. The pipeline reaches the model through one small module ([`llm.py`](src/payguard/triage/llm.py)), so a hosted model is a one-module swap.
 - **Chosen over Qwen 3.5 4B on the first 20 dev complaints.** Granite got every category right, sent exactly the 7 complaints the labels need to a person and raised no false flags, but half its summaries ran past 2 sentences. Qwen wrote the best summaries but raised 10 false flags (7 times treating a cited law as a legal threat) and sent 15 of 20 to a person, which works against taking load off the team. Granite's weakness was cosmetic and caught by the summary check; Qwen's hit the goal. Twenty complaints is a small trial.
 - **Gemma 4 e4B was dropped before the trial:** it runs like a 4B model but downloads and loads like an 8B one (6.6 GB).
-- **Summaries are kept under 50 words.** Granite padded them with the consumer's history of contacts with the company. A tighter instruction, decided on the dev results before any test result, cut the dev summaries from 51 to 33 words on average without changing the decisions.
+- **The summary instruction asks for under 50 words.** Granite padded them with the consumer's history of contacts with the company. A tighter instruction, decided on the dev results before any test result, cut the dev summaries from 51 to 33 words on average without changing the decisions.
 
 **The model is treated as unreliable:**
 - its output is constrained to the schema while it's generated, then validated again in code, with sampling pinned (temperature 0, fixed seed);
@@ -375,7 +376,7 @@ Full figures are in the [evaluation report](reports/triage/evaluation_report.md)
 | **Test: auto-routed complaints that reached the right team** | **20 of 22 (90.9%, 72–98%)**; dev 15 of 15 |
 | Test: category / urgency accuracy, all complaints | 38 of 50 (76%, 63–86%) / 37 of 50 (74%, 60–84%) |
 | Sensitive cases routed without a person (80 labelled) | 2: a bank withholding $3,300, rated medium instead of high; and a vague complaint the reference marks `other` (its label notes call it borderline) |
-| Summaries | 34 words on average against 232 for the narrative (15%); 10 of 10 judged faithful in the spot-check; 117 of 500 (23%) run past 2 sentences, all under 50 words; 1 flagged for a number not in the complaint, a false alarm ("thirty days" written as 30) |
+| Summaries | 34 words on average against 232 for the narrative (15%); 10 of 10 judged faithful in the spot-check; 117 of 500 (23%) run past 2 sentences; 35 of 500 reach 50 words or more (longest 82); 1 flagged for a number not in the complaint, a false alarm ("thirty days" written as 30) |
 | Agreement with CFPB's fields | 45.8% of 500 (the reference labels: 61.3% of 80) |
 | Consistency on identical complaints | 6 of 7 repeated narratives judged identically |
 | **Prompt injection (10 attacks on real complaints)** | **4 of 10 passed**, one of which can't fail by design; the model resisted 3 of the other 9 |
@@ -523,7 +524,7 @@ We built both prototypes without further input from you. Wherever we needed an a
 
 | Question | What we assumed | What changes with your answer |
 |---|---|---|
-| **Review capacity.** How many fraud alerts can your team review a day? | 0.2% of transactions (about 285 a day), just above the 0.173% fraud rate, so the model rather than the budget limits recall. We started at 0.1%, a published industry figure, but below the fraud rate it capped recall at 58%; we changed it before any model was scored. | The threshold, and how many frauds are caught. Returns fall fast beyond 0.3%: about 92 of 115 test frauds at 0.3%, about 100 at 5%. |
+| **Review capacity.** How many fraud alerts can your team review a day? | 0.2% of transactions (about 285 a day), just above the 0.173% fraud rate, so the model rather than the budget limits recall. We started at 0.1%, a published industry figure, but below the fraud rate it capped recall at 58%; we changed it before any model was scored. | The threshold, and how many frauds are caught. Returns fall fast beyond 0.3%: 91–93 of 115 test frauds at 0.3%, 98–101 at 5%, depending on the model. |
 | **Cost of errors.** What does a false alert cost you (customer friction, declined sales, analyst time) against a missed fraud (chargeback, fees)? | No ratio. Errors are weighed only through the alert budget, with a missed fraud treated as worse than a checked genuine transaction. | The operating point, a cost-weighted threshold, and which score band is declined or stepped up rather than reviewed. |
 | **Decision timing.** Must the score decide inside the authorisation, or can action follow it? | Inside the authorisation: one transaction at a time, synchronously. | The architecture: scoring after the authorisation, or in small batches, would relax the latency limit. |
 | **Latency limit.** How much of the authorisation window can fraud scoring take? | p99 within 50 ms, the lenient end of the published 10–50 ms range. | The headroom: we measured p99 25.6 ms end to end on one machine. |
@@ -566,7 +567,7 @@ We built both prototypes without further input from you. Wherever we needed an a
 |---|---|---|
 | **Time estimate.** Is ~3 hours per part a requirement or a guide? | A guide. We built further where it answered the brief: the replay and API are the answer to real-time scoring. Section 7 lists what could be cut if the time were binding. | What gets cut. |
 | **Hand labels.** Is a reference labelled by a stronger model acceptable in place of hand labels? | Yes, given the time estimate; disclosed with its limits in section 4.6. | Hand labels for the test set, and a measure of how far the model's labels agree with them. |
-| **Summary length.** Must summaries stay within 1–2 sentences? | A target, not enforced: 23% run longer (all under 50 words) where the extra length keeps details needed to handle the complaint. | A sentence check that sends long summaries back to the model. |
+| **Summary length.** Must summaries stay within 1–2 sentences? | A target, not enforced: 23% run longer, and 35 of 500 reach 50 words or more (longest 82), where the extra length keeps details needed to handle the complaint. | A sentence check that sends long summaries back to the model. |
 | **Output format.** What format does your system ingest? | CSV with y/n values and extra columns (review reasons, tokens, model digest); the brief's example was JSON. | A JSON writer with the brief's five fields. |
 
 ## 7. Engineering and scope
@@ -593,7 +594,7 @@ Tests that need the fraud data skip when it hasn't been downloaded.
 
 **Workflow.** `main` always works. Each step happened on a short-lived branch with conventional commits, and a pull request that explains what changed, why, and how to verify it. An automated code review ran on each pull request; its findings were posted as comments, and each was fixed or answered before merging. Decisions and their reasons were logged in [CONTEXT.md](CONTEXT.md) as they were made.
 
-**AI use.** Claude Code wrote essentially all the code and drafted the documents, in short sessions under our direction; every change was walked through and reviewed before merging. Eraser's DiagramGPT drew the memo's architecture figure from a prompt Claude Code wrote. [AI_USAGE.md](AI_USAGE.md) records each component.
+**AI use.** Claude Code wrote essentially all the code and drafted the documents, in short sessions under our direction; every change was walked through and reviewed before merging. Gemini Neon (high effort) labelled the 80 reference complaints from our labelling guide (section 4.4). Eraser's DiagramGPT drew the memo's architecture figure from a prompt Claude Code wrote. [AI_USAGE.md](AI_USAGE.md) records each component.
 
 **Size against the ~3-hour estimate.** The brief estimates about 3 hours per part, which we read as a guide (section 6). Of 2,396 Python code lines, 1,271 (53%) are essential to the brief: 297 of 1,145 in fraud detection (26%), 969 of 1,246 in complaint triage (78%), and 5 shared. Lines are counted without blanks, comments or docstrings, each component with its tests; files that mix purposes are split by function, to within a few lines.
 

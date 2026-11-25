@@ -45,7 +45,7 @@ def hgb() -> Pipeline:
 
 
 CANDIDATES = {"logreg": logreg, "hgb": hgb}
-# The owner's choice from the decision report (README "Results"); the API serves this candidate.
+# The owner's choice from the decision report (REPORT.md section 3.5); the API serves this candidate.
 SELECTED = "hgb"
 
 
