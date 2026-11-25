@@ -116,6 +116,7 @@ We built both prototypes without further input from you. Wherever we needed an a
 |---|---|---|
 | **Teams.** Do our seven routing categories match your teams? | Our own taxonomy, read from the complaint's text: fraud first, then credit-report content, then product. | The taxonomy. One file drives the prompt, the labelling guide and the CFPB mapping, so a change stays consistent. |
 | **Always-human cases.** Beyond fraud allegations and legal threats, which cases must always reach a human? | Seven reasons: any CFPB tag, any flag, high urgency, category `other`, legal words, a failed model call, or unusable text. | How many complaints reach a human (54.4% of the slice; 8.4% for a tag alone). |
+| **Response-time targets.** Do you have response-time targets for complaints, or your own definition of urgency? | Harm-led urgency: the kind of harm, and whether it's ongoing, imminent or past, sets the level. Time cues in the text can raise it; missing or redacted time never lowers it. | The urgency definitions, and with them which complaints the review rule sends to a human (high urgency always goes to one). |
 | **Very short complaints.** What should happen to complaints with almost no text? | Under 5 words, they go to a human without the model (none in the slice). | The cut-off. |
 | **Timing.** Can triage wait for a batch, or must it run as complaints arrive? | A batch script, as the brief asked. | Hosted models' batch APIs halve their prices. |
 

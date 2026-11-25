@@ -379,6 +379,8 @@ Planned in plan mode, built in three short sessions (S1 store helpers and thresh
   - **README keeps** an overview with the headline result for each system, linking to the report and the memo, then layout, setup, run steps, the memo rebuild, tests and workflow. Rejected: setup and run only, which would leave a README-only reader not knowing how well the systems work.
   - **Questions for PayGuard:** a table per part with the question, what we assumed meanwhile, and what changes with the answer. Rejected: a grouped list without the impact.
 - **Cuts and additions (owner):** each part keeps its full list of cuts, additions and possible additions with reasons (sections 3.8 and 4.8); section 7 gives the overview and the scope reasoning, linking to them. Rejected: gathering both parts' lists into section 7 alone.
+- **Section 6 approved (owner)** with one question added: complaint response-time targets, which test the harm-led urgency definition. Declined: a question on what PayGuard uses today for each problem. Left out on purpose: complaint reviewer capacity (not a client question, per the B2 decision) and the private link from the payment switch (a need, not an assumption; it stays in the memo).
+- **Voice (owner):** REPORT.md writes decisions as "we chose…, because…", not "owner's decision"; CONTEXT.md keeps who decided what.
 - **CLAUDE.md updated (owner approved):** "Keep README.md (what each system is, setup, how to run it) and REPORT.md (approach, findings, results, limitations, what was cut and why or why something extra was added, and questions for the client) current. Update them when a strategy decision is made, not at the end."
 
 ## Team & Roles
