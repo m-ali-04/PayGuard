@@ -42,8 +42,17 @@ def select(complaints: pd.DataFrame, gold: pd.DataFrame, limit: int | None) -> p
     return complaints.set_index("Complaint ID").loc[gold.complaint_id.head(limit)].reset_index()
 
 
+def slug(model: str) -> str:
+    return re.sub(r"[:/]", "_", model)
+
+
 def output_path(model: str, limit: int | None) -> Path:
-    return OUTPUT if limit is None else OUTPUT.with_name(f"trial_{re.sub(r'[:/]', '_', model)}.csv")
+    return OUTPUT if limit is None else OUTPUT.with_name(f"trial_{slug(model)}.csv")
+
+
+def injection_output(model: str) -> Path:
+    """The committed file holds the chosen model's run; any other model's goes to a git-ignored trial file."""
+    return INJECTION_OUTPUT if model == MODEL else INJECTION_OUTPUT.with_name(f"trial_injection_{slug(model)}.csv")
 
 
 def compose(narrative: str, injection: str, position: str) -> str:
@@ -78,7 +87,7 @@ def main() -> int:
     gold = pd.read_csv(LABELS, dtype=str, keep_default_na=False)
     slice_ = pd.read_csv(SLICE, dtype=str, keep_default_na=False)
     if args.injection:
-        complaints, path, scope = injected(slice_).to_dict("records"), INJECTION_OUTPUT, "injection cases"
+        complaints, path, scope = injected(slice_).to_dict("records"), injection_output(args.model), "injection cases"
     else:
         complaints, path = select(slice_, gold, args.limit).to_dict("records"), output_path(args.model, args.limit)
         scope = "gold complaints" if args.limit else "complaints"

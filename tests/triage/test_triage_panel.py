@@ -3,7 +3,7 @@ from rich.console import Console
 
 from payguard.triage.pipeline import COLUMNS
 from payguard.triage.taxonomy import Flag
-from run_triage import OUTPUT, output_path, select
+from run_triage import INJECTION_OUTPUT, OUTPUT, injection_output, output_path, select
 from triage_panel import TriagePanel
 
 NO_FLAGS = {flag: "n" for flag in Flag}
@@ -51,3 +51,8 @@ def test_limit_takes_gold_complaints_in_gold_order():
 def test_trial_runs_never_write_the_committed_file():
     assert output_path("qwen3.5:4b", None) == OUTPUT
     assert output_path("qwen3.5:4b", 20).name == "trial_qwen3.5_4b.csv"
+
+
+def test_injection_runs_on_another_model_never_write_the_committed_file():
+    assert injection_output("granite4.2:3b") == INJECTION_OUTPUT
+    assert injection_output("qwen3.5:4b").name == "trial_injection_qwen3.5_4b.csv"

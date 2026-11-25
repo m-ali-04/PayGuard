@@ -26,3 +26,10 @@ def test_every_case_is_built_from_its_real_base_complaint():
     assert list(built["Complaint ID"]) == list(cases.case_id)
     for text, original, attack in zip(built[NARRATIVE], base[NARRATIVE], cases.injection):
         assert attack in text and text.replace(attack, "").split() == original.split()
+
+
+def test_only_the_legal_words_case_is_marked_as_unable_to_fail():
+    from evaluate_triage import cannot_fail
+
+    cases = pd.read_csv(INJECTION_CASES, dtype=str, keep_default_na=False)
+    assert [c["case_id"] for c in cases.to_dict("records") if cannot_fail(c)] == ["inj-06"]
