@@ -6,6 +6,12 @@ Prototype solutions for a finance client's two problems: **(1) real-time fraud d
 
 Tested from a clean environment on Linux. You need `curl` and an internet connection.
 
+**On Windows**, `reproduce_windows.ps1` runs steps 1–10 in order (about 20 minutes) from PowerShell, with uv, Python, the package cache and the Kaggle CLI's files kept inside the repo (`.tools\`, `.venv\`) rather than in your user profile:
+```powershell
+powershell -ExecutionPolicy Bypass -File reproduce_windows.ps1
+```
+*Not yet tested on a Windows machine.* Replay latency on Windows isn't comparable with the Linux figures below.
+
 1. **Install uv** (the Python package and project manager):
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh

@@ -19,6 +19,7 @@ This file records the AI tools used on PayGuard, what each was used for, and rou
 | Scoring API: store helpers, API, tests (src/payguard/fraud/tracking.py, src/payguard/fraud/api.py, tests/fraud/test_api.py, tests/fraud/conftest.py) | Claude Code | ~100% | 2026-11-25 (approved by owner, PR #6 merged) |
 | Replay: engine, live panel, parity report, tests (scripts/fraud/replay.py, scripts/fraud/replay_panel.py, scripts/fraud/replay_report.py, tests/fraud/test_replay.py) | Claude Code | ~100% | 2026-11-25 (walked through with owner per session, PR #7 merged) |
 | Complaint data: archive slice script, test, committed slice (scripts/triage/get_complaints.py, tests/triage/test_complaints.py) | Claude Code | ~100% | 2026-11-25 (walked through with owner per session, PR pending) |
+| Windows reproduction: setup script, line-ending rule (reproduce_windows.ps1, .gitattributes) | Claude Code | ~100% | 2026-11-25 (pending owner review and a Windows test run) |
 
 ## Usage Log
 
@@ -36,6 +37,7 @@ This file records the AI tools used on PayGuard, what each was used for, and rou
 | 2026-11-25 | Claude Code | Problem 1 / Replay | Laid out the visual-view options; measured the test window, API throughput, fraud-dense windows and real gaps between transactions for the owner's slice and speed-up choices; probed the API under overlapping requests (found the OpenMP oversubscription and the uvicorn multi-worker no-delay quirk); wrote the replay engine, rich live panel, parity report and tests (parity test checked against a deliberate rounding bug); added rich and moved httpx to the main dependencies | Owner made every decision (panel, slice, pacing, scope); walked through per session; PR review pending |
 | 2026-11-25 | Claude Code | Problem 2 / Repo layout | Moved fraud scripts, reports and tests into `fraud/` subfolders (option A) and updated every path, docstring hint and README command | Layout decided by owner; plan approved |
 | 2026-11-25 | Claude Code | Problem 2 / Data | Found that live CFPB no longer serves narratives (tested the API and bulk file); located and checked the 2026-08-15 Internet Archive copy of CFPB's bulk file; wrote the slice script (partial zip read, fixed-seed sample, hash checks) and its test (checked against removing the truncated-row drop); generated and committed the 500-complaint slice; documented the source in README | Owner chose the archived source and the committed slice; walked through per session |
+| 2026-11-25 | Claude Code | Repo / Reproducibility | Audited the setup for Windows/Linux limitations; added .gitattributes so Windows checkouts keep the complaint slice's hash; wrote reproduce_windows.ps1 with every install kept inside the repo (checked with a clean clone and an empty home folder on Linux, and parsed with Windows PowerShell 5.1) | Requested by owner; Windows test run pending |
 
 ## Estimation Method
 

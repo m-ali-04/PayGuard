@@ -6,3 +6,5 @@ __pycache__/
 context/
 mlflow.db
 mlruns/
+.tools/
+api.*.log
