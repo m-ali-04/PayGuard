@@ -90,6 +90,9 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 
 **Goal:** flag fraudulent card transactions with a model that serves real-time inference.
 
+**Production design:** [memo to PayGuard's CTO](docs/memo.md) on taking this prototype to production (architecture, monitoring, data handling, phased rollout, and what we need from PayGuard).
+To rebuild the 2-page PDF (`docs/memo.pdf`) after editing `docs/memo.md`, run `docs/build_memo_pdf.sh`. It needs uv and Chrome: on WSL it uses Windows Chrome by default; elsewhere, set `CHROME` to a Chrome or Chromium binary.
+
 ### Approach
 *In planning. Decisions so far:*
 - **Latency baseline: p99 ≤ 50 ms per transaction.** This is the lenient end of the published 10–50 ms range for fraud scoring, and improving on it is a goal if we have capacity.

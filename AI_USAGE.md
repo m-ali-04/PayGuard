@@ -6,7 +6,8 @@ This file records the AI tools used on PayGuard, what each was used for, and rou
 
 | Tool        | Purpose                                         | Approx. share of code |
 |-------------|-------------------------------------------------|-----------------------|
-| Claude Code | Project docs; setup, analysis, model-training, evaluation, serving and replay code; complaint data, triage pipeline and triage evaluation code | ~100% of code so far  |
+| Claude Code | Project docs; setup, analysis, model-training, evaluation, serving and replay code; complaint data, triage pipeline and triage evaluation code; production memo text | ~100% of code so far  |
+| Eraser DiagramGPT | Architecture diagram for the production memo (docs/architecture.png), from a prompt Claude Code wrote | n/a (no code) |
 
 ## Per-Component Estimates
 
@@ -25,6 +26,7 @@ This file records the AI tools used on PayGuard, what each was used for, and rou
 | Triage evaluation: scoring helpers, report script, shared report helpers, Wilson ranges, tagged/untagged recall, workload, multi-vendor cost and prompt-injection sections (src/payguard/triage/evaluation.py, scripts/triage/evaluate_triage.py, src/payguard/reporting.py, tests/triage/test_triage_evaluation.py) | Claude Code | ~100% | 2026-11-25 (walked through with owner per session; PRs #8 and #9 merged; additions PR pending) |
 | Legal-words backstop in the review policy (src/payguard/triage/policy.py, tests/triage/test_policy.py) | Claude Code | ~100% | 2026-11-25 (option chosen by owner; PR #9 merged) |
 | Windows support: WSL route in README, line-ending rule, UTF-8 report writes (README.md, .gitattributes, scripts/fraud/{data_understanding,evaluate,replay_report}.py) | Claude Code | ~100% | 2026-11-25 (owner chose the WSL route; PR #8 merged) |
+| Memo PDF build: Markdown to HTML to PDF via headless Chrome (docs/build_memo_pdf.sh, docs/memo.css) | Claude Code | ~100% | 2026-11-26 (owner chose the route, the layout and where it lives; PR #13) |
 
 ## Usage Log
 
@@ -49,6 +51,8 @@ This file records the AI tools used on PayGuard, what each was used for, and rou
 | 2026-11-25 | Claude Code | Problem 2 / Evaluation additions | Evaluated Part 2 against the brief (local note); computed the tagged/untagged recall split, routing accuracy of auto-routed complaints and summary length from the committed outputs; looked up standard list prices on the official Anthropic, OpenAI, Google and Mistral pages and a GCP L4 rate; wrote the Wilson interval (checked against statsmodels), the recall split table, and the workload and cost sections; updated README results and CONTEXT.md | Owner made every decision (order, client fields, words-only summaries, cloud-GPU basis); planned in plan mode; walked through per session |
 | 2026-11-25 | Claude Code | Problem 2 / confidence_note check | Ran an ad-hoc doubt-word and other-area check of the model's confidence notes against the gold labels; showed the owner the options for a formal measure with real-row previews; wrote the README bullet, possible addition and limitation, and the CONTEXT.md entry (no code) | Owner decided no formal measure was needed |
 | 2026-11-25 | Claude Code | Problem 2 / Prompt-injection test | Planned the test in plan mode with a previewed attack set; wrote the 10 attack cases on real complaints, the runner's `--injection` mode (`compose`, `injected`), the four pass rules and report section 9, with tests checked against broken versions; dry-ran the section on faked outputs; checked the owner's run against the raw outputs by hand; wrote the README, CONTEXT.md and AI_USAGE updates | Owner approved the cases and rules beforehand and ran the model |
+| 2026-11-25/26 | Claude Code | Production memo (Part C) | Evaluated the owner's starting suggestions (pros, cons, options, with web checks on AWS residency, Bedrock cross-region inference and managed Grafana/Prometheus regions); proposed the memo's structure and drafted each section for the owner's decisions; wrote the DiagramGPT prompt and reviewed each generated diagram; computed fraud value caught on the test window (ad hoc); assembled docs/memo.md and logged decisions in CONTEXT.md | Owner made every decision (Part 1, architecture choices, structure, each section's content); sections settled one by one |
+| 2026-11-25/26 | Eraser DiagramGPT | Production memo (Part C) | Drew the architecture diagram from Claude Code's prompt over several edit rounds | Owner chose the final version |
 
 ## Estimation Method
 
