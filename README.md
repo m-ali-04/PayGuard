@@ -49,7 +49,12 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
      -d "{$(for i in $(seq 1 28); do printf '"V%d": 0, ' $i; done)\"Amount\": 25}"
    # {"fraud_score":…,"alert":false,"threshold":0.357…,"model_run_id":"…"}
    ```
-9. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
+9. **Complaint data (triage).** The 500-complaint slice ships in the repo at `data/triage/complaints_sample.csv`, so there's nothing to download. Optionally verify it, or rebuild it from the archived CFPB file (reads the first 10 MB, about 20 seconds) to confirm it's reproducible:
+   ```bash
+   uv run scripts/triage/get_complaints.py            # checks the committed file's SHA-256, no network
+   uv run scripts/triage/get_complaints.py --rebuild  # re-draws it from the archive; must give the same bytes
+   ```
+10. **Run the tests.** The fraud data tests are skipped if the dataset hasn't been downloaded:
    ```bash
    uv run pytest
    ```
@@ -153,4 +158,13 @@ Full numbers: [decision report](reports/fraud/decision_report.md) (regenerate wi
 
 ## Problem 2: Complaint Triage
 
-*Not started.*
+*In progress.* Goal: a batch pipeline that turns a raw complaint narrative into a structured triage record (category, urgency, summary, requires_human, confidence_note), with an evaluation of how good the triage is.
+
+### Data
+
+- **Source:** the CFPB Consumer Complaint Database, as the brief asks. CFPB removed consumer narratives from the live database in September 2026 (Release 24). The live API ignores the narrative filter, and today's bulk file has no narrative column. So the slice comes from **CFPB's own bulk file as the Internet Archive captured it on 2026-08-15**, before the removal: `https://web.archive.org/web/20260815141332id_/https://files.consumerfinance.gov/ccdb/complaints.csv.zip` (1,415,011,387 bytes). The `id_` link serves the archived bytes unchanged. The change of source is being raised with the client.
+- **Slice:** 500 complaints with narratives, drawn with seed 42 (NumPy `RandomState`) from the whole rows in the file's first 10,000,000 bytes (326,286 rows). All 16 columns are kept as CFPB published them. Narratives carry CFPB's own redaction (`XXXX`, `XX/XX/2023`).
+- **Reproducibility:** the slice is committed (CFPB data is public domain, CC0; 822 KB). `scripts/triage/get_complaints.py --rebuild` re-downloads the same 10 MB and checks both hashes:
+  - first 10 MB of the archive: `334b6c638fe4f2395e6c5d2b95d33201a5eff7ab492a27028f035fe3c4a014d5`
+  - slice: `42b27d0b1f7e7a593840dd3192c74390c3fb341d79dd88fd911c9d8224a74dcc`
+- **Why only the first 10 MB:** a full download would cost every rebuild 1.4 GB to keep 500 rows. The trade-off: the sample reflects the order of CFPB's file, so its date and product mix is checked in the data review.
