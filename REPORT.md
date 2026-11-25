@@ -455,7 +455,27 @@ Batch APIs from Anthropic, OpenAI and Google halve their prices if triage can wa
 | Priority tiers in the review queue, or a narrower tag rule | Keeps the queue manageable if it outruns your team. | Today every complaint is handled by hand, so review capacity isn't a constraint for the prototype. |
 
 ## 5. Production
-*The memo in brief (architecture, monitoring, data and residency, phased rollout, what we need from PayGuard), linking to the memo and its PDF.*
+
+The brief asked for a memo to your CTO on taking one prototype to production. It covers fraud scoring: [the memo](docs/memo.md), also as a [2-page PDF](docs/memo.pdf). In brief:
+- **Recommendation:** go to production in phases, starting in shadow mode with no effect on payments. The evidence rests on 48 hours of anonymised data; velocity features and a steady label feed are the largest gains, and both depend on your team.
+- **Architecture:** scoring stays synchronous. Each authorisation reaches a pool of single-threaded scoring pods on EKS over a private link, and the pods read the card's velocity features from Redis. Alongside that path, Kafka records every transaction, decision and delayed fraud label; Flink builds the velocity features and archives events to S3 for training; MLflow registers each model with its threshold; and Prometheus and Grafana watch service and model metrics. Argo CD and DVC are recommended additions.
+- **Data:** everything except Git and CI runs in one in-country AWS region, with organisation-wide policies blocking any other region, and no transaction goes to an outside model API. Privacy is covered principle by principle (private networking, encryption, least privilege, audit, minimisation, PCI DSS), and data is kept for your legal minimum.
+- **Monitoring:** service health is standard alerting. The memo concentrates on five failures where the service keeps answering, but wrongly: threshold drift, input drift, an upstream feature change, stale velocity features and new fraud patterns.
+- **Rollout:** four phases (shadow, human in the loop, partial automation with a step-up check or decline on the top band, steady state), each moving on gates set with your fraud team, not on dates.
+- **What we need from you:** a table by team, from identifiers and a chargeback feed to review capacity, the cost of errors, peak volume and compliance rules. Section 6 asks the same questions, with what we assumed meanwhile.
+
+**How the prototype's findings shaped the memo:**
+
+| Finding in the prototype | Where it shows in the memo |
+|---|---|
+| Overlapping requests stalled default threading, with p99 near 22 s (section 3.6) | Single-threaded scoring pods, added as traffic grows |
+| The night-set threshold flags half the budget by day (section 3.5) | Threshold drift as the first silent failure; recalibration on live traffic in the shadow phase |
+| Served scores matched offline scores exactly (section 3.5) | A parity check in CI before every deployment |
+| No card ID, so no velocity features (section 3.2) | A card token from you; Flink and Redis to build and serve velocity features |
+| Fraud labels arrive weeks late (section 3.6) | Kafka carries the delayed labels; retraining paced by label delay; recall tracked per label cohort |
+| The alert budget and the cost of errors are assumed (section 3.7) | The real budget set with your fraud team; rollout gates on its targets |
+
+For complaint triage, the route to production is the pilot in section 4.7.
 
 ## 6. Questions for PayGuard
 
