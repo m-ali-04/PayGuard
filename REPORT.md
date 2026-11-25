@@ -172,7 +172,52 @@ Amounts are in the data's own currency, which it doesn't name. Without a ratio, 
 | **The API is a single local process with no authentication.** | Fine for a prototype; not deployable as it stands. | Your gateway and platform (section 3.8, and the memo). |
 
 ### 3.8 Cut, added and possible additions
-*Opens with what we built, by line count: essential code (297 of 1,145 lines) and each addition with its lines and reason. Then each cut and possible addition with its reason, including why the replay and API are the answer to "real-time" rather than extras.*
+
+**What we built, by line count.** Python code lines, without blank lines, comments or docstrings; each component is counted with its tests.
+
+| Component | Code lines | | Why it's there |
+|---|---|---|---|
+| Time windows, model pipelines, metrics, fitting, decision report | 297 | **Essential** | The brief's answer: the method, a baseline against a stronger model, the metrics and the threshold. |
+| Replay and parity check | 213 | Added | **Production in mind.** It proves served scores equal offline scores on your traffic and measures end-to-end latency. It also found the threading problem behind the memo's single-thread scaling. |
+| Data analysis report | 184 | Added | **Evidence the decisions rest on:** the time split, the duplicate policy and the limitations. A script regenerates the same report every time. |
+| Scoring API | 151 | Added | **Production in mind.** The request/response service an authorisation path calls, with a versioned, validated contract. |
+| Live replay panel | 94 | Added | **Presentation.** An audience can watch decisions as they're made. |
+| MLflow tracking | 81 | Added | **Production in mind.** Each model is stored with its contract and threshold, so the API serves exactly the run that was evaluated. |
+| Hash-checked download | 57 | Added | **Reproducibility.** Anyone gets the exact bytes we used. |
+| Bootstrap ranges and complexity notes | 48 | Added | **More confidence for little code.** They showed the model gain isn't certain. |
+| Latency measurement | 20 | Added | **More confidence for little code.** It checks the 50 ms limit. |
+| **Total** | **1,145** | 26% essential | |
+
+**Why the replay and API answer "real-time" rather than decorate it.** The brief asks for a short note on real-time inference. We answered with measurements as well as a note: the API is the request/response contract an authorisation path calls, and the replay sends your transactions through it at their recorded pace. That turned three claims into evidence: p99 25.6 ms end to end, served scores identical to offline, and how threading behaves when requests overlap. The last of these only showed up by running it. If the timescale were binding, these would still be the first things to cut (section 7), and the note in section 3.6 would rest on the model-only latency figure.
+
+**What we cut:**
+
+| Cut | Why | Revisit when |
+|---|---|---|
+| Notebooks | The presentation shows findings, not analysis code: a script writes the data report, and MLflow's interface compares models. | — |
+| Data versioning (DVC) | The data is one fixed file; a hash-checked download gives the same guarantee without a storage remote. | The data changes over time. The memo adds DVC for production. |
+| A second download source (a third-party mirror) | Kaggle's public download works without an account, and a manual route covers the case where that changes. | Kaggle requires sign-in. |
+| Forward-chaining validation | One daily cycle can't separate drift from time of day (section 3.3). | Several weeks of history exist. |
+| Resampling (SMOTE, undersampling) | It adds a step that never runs live, and hasn't shown gains on ranking measures such as average precision. Class weighting handles the imbalance. | — |
+| A second boosting library (XGBoost, LightGBM) | scikit-learn's boosted trees did the job; the one fix they needed was a single setting. | A gain over scikit-learn's version is shown. |
+| SHAP explanations | Not asked for, and they would point to anonymised components with no business meaning. | You or your regulator need explanations (memo, phase 2). |
+| A model registry | The served model is named in code, so changing it is a reviewed code change. | Production: MLflow's registry with aliases is the standard promotion flow, as in the memo. |
+| Authentication, rate limiting and request logging on the API | They belong to your gateway and platform. | Production (memo). |
+| A browser demo page | The API's interactive docs page already lets anyone score a transaction, and the live demo is the replay's panel. | — |
+| A feature store | One shared code path covers the same need at this scale. | Features are shared across models or teams. |
+| Load testing | Out of scope (section 3.1). | Before launch (memo). |
+
+**Possible additions:**
+
+| Addition | What it would give | Why not now |
+|---|---|---|
+| Kafka streaming | A local streaming pipeline, or Kafka beside the API to log every decision for monitoring. | A request/response API matches the authorisation path, so the prototype starts there. The memo's production design adds Kafka. |
+| Grafana and Prometheus | Live dashboards of scores, alerts and latency: the industry's monitoring stack. | It needs Docker and a metrics endpoint, and the terminal panel serves the demo. The memo includes it. |
+| Time-of-day handling | A fix for the night/day threshold drift. Cheapest first: separate thresholds for busy and quiet hours, then a time-of-day feature, then separate models (each training on fewer frauds). | One night of evidence and an unknown clock. Each option would go through the decision report once weeks of data show the pattern. |
+| Deduplicating exact copies for fitting and threshold setting only | Each transaction counted once when fitting: 13 distinct frauds appear 32 times. | The gain is unproven, and deduplication normally happens upstream, by transaction ID. |
+| Anomaly detection (for example Isolation Forest) | A companion signal for new fraud patterns that labels don't cover yet. | Not needed to answer the brief. The memo places it in the analyst queue in phase 2. |
+
+**Suggestion, not adopted: one inference thread per request** (`OMP_NUM_THREADS=1`), if replay results on other hardware differ greatly from ours. It removed the slowdown under overlapping requests in a short probe, but the reported results were measured on default settings and it hasn't been tested under the same conditions (section 3.6).
 
 ## 4. Complaint triage
 
