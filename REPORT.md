@@ -62,7 +62,7 @@ The KS cut-offs (0.2 and 0.7) are reporting thresholds we chose, not industry st
 *Short history, no IDs, duplicates of unknown origin, day/night threshold drift, anonymised features, untested concurrent load.*
 
 ### 3.8 Cut, added and possible additions
-*Each with its reason, including why the replay and API are the answer to "real-time" rather than extras.*
+*Opens with what we built, by line count: essential code (297 of 1,145 lines) and each addition with its lines and reason. Then each cut and possible addition with its reason, including why the replay and API are the answer to "real-time" rather than extras.*
 
 ## 4. Complaint triage
 
@@ -88,7 +88,7 @@ The KS cut-offs (0.2 and 0.7) are reporting thresholds we chose, not industry st
 *What we would measure in production, and the shadow-mode pilot.*
 
 ### 4.8 Cut and possible additions
-*Each with its reason, including the output format (CSV with y/n against the brief's JSON example).*
+*Opens with what we built, by line count: essential code (969 of 1,246 lines) and each addition with its lines and reason. Then each cut and possible addition with its reason, including the output format (CSV with y/n against the brief's JSON example).*
 
 ## 5. Production
 *The memo in brief (architecture, monitoring, data and residency, phased rollout, what we need from PayGuard), linking to the memo and its PDF.*
@@ -160,4 +160,4 @@ We built both prototypes without further input from you. Wherever we needed an a
 | **Output format.** What format does your system ingest? | CSV with y/n values and extra columns (review reasons, tokens, model digest); the brief's example was JSON. | A JSON writer with the brief's five fields. |
 
 ## 7. Engineering and scope
-*Repository structure; shared code paths (training and serving; taxonomy, prompt and labelling guide); the tests and what they guard; reproducibility (hash-checked data, clean-room runs); the workflow (branches, PRs, automated review); AI use; size against the ~3 h estimate (line counts recounted); an overview of the cuts we made and the additions we suggest, and why, linking to each part's full list (3.8, 4.8); what could be cut if the timescale were binding, and how far the possible additions would go.*
+*Repository structure; shared code paths (training and serving; taxonomy, prompt and labelling guide); the tests and what they guard; reproducibility (hash-checked data, clean-room runs); the workflow (branches, PRs, automated review); AI use; size against the ~3 h estimate (1,271 of 2,396 Python code lines essential, with the counting method); an overview of the cuts we made and the additions we suggest, and why, linking to each part's full list (3.8, 4.8); what could be cut if the timescale were binding, and how far the possible additions would go.*
