@@ -94,6 +94,16 @@ def _post(http: httpx.Client, payload: dict) -> dict:
         time.sleep(2 ** attempt)
 
 
+def model_digest(http: httpx.Client, model: str) -> str | None:
+    """The pulled model's digest, which pins the exact weights a batch ran on; None if it isn't pulled."""
+    try:
+        response = http.get("/api/tags")
+    except httpx.ConnectError as e:
+        raise OllamaUnavailable(f"Can't reach Ollama at {http.base_url}; is it running?") from e
+    response.raise_for_status()
+    return next((m["digest"] for m in response.json()["models"] if m["name"] == model), None)
+
+
 def triage(http: httpx.Client, narrative: str, model: str) -> Result:
     payload = {
         "model": model,

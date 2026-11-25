@@ -26,6 +26,7 @@ from payguard.fraud.evaluation import (
 )
 from payguard.fraud.models import CANDIDATES
 from payguard.fraud.tracking import ROOT, StoreError, latest_run, use_local_store
+from payguard.reporting import pct, table
 
 REPORT = ROOT / "reports" / "fraud" / "decision_report.md"
 LATENCY_CALLS, WARMUP_CALLS = 2000, 50
@@ -126,15 +127,6 @@ def recommendation(results: dict[str, dict]) -> str:
         return (f"**No default.** `{best}` has the highest AP but catches fewer frauds at the budget than "
                 f"{', '.join(f'`{n}`' for n in rivals)}. Reported as a finding; the owner decides.")
     return f"**`{best}`** by the selection rule (highest AP, not worse at the budget)."
-
-
-def table(header: list[str], rows: list[list]) -> str:
-    lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
-    return "\n".join(lines + ["| " + " | ".join(map(str, row)) + " |" for row in rows])
-
-
-def pct(x: float) -> str:
-    return f"{x:.1%}"
 
 
 def signed_range(low: float, high: float, fmt: str) -> str:

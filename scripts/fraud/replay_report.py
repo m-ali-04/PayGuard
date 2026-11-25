@@ -11,11 +11,11 @@ import mlflow.sklearn
 import numpy as np
 import pandas as pd
 
-from evaluate import pct, table
 from get_data import SHA256
 from payguard.fraud.data import FEATURES, LABEL
 from payguard.fraud.evaluation import LATENCY_LIMIT_MS, at_threshold, latency_summary
 from payguard.fraud.tracking import ROOT, use_local_store
+from payguard.reporting import pct, table
 from replay_panel import BIN_MIN, bin_start, hh_mm, mm_ss
 
 if TYPE_CHECKING:

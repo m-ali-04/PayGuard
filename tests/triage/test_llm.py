@@ -1,33 +1,12 @@
-import json
-
 import httpx
 import pytest
 
 from payguard.triage import llm
-from payguard.triage.llm import (OLLAMA_URL, SYSTEM_PROMPT, OllamaUnavailable, TriageOutput, to_assessment,
-                                 triage, user_message)
+from payguard.triage.llm import (OLLAMA_URL, SYSTEM_PROMPT, OllamaUnavailable, TriageOutput, model_digest,
+                                 to_assessment, triage, user_message)
 from payguard.triage.taxonomy import DEFINITIONS, Category, Flag, Urgency
 
-VALID = {"category": "lending", "fraud_allegation": False, "legal_threat": True, "vulnerable_customer": False,
-         "safety_risk": False, "discrimination": False, "urgency": "high",
-         "summary": "The consumer's car is about to be repossessed.", "confidence_note": "The date is redacted."}
-
-
-def ollama_reply(content: dict | str, done_reason: str = "stop") -> httpx.Response:
-    text = content if isinstance(content, str) else json.dumps(content)
-    return httpx.Response(200, json={"message": {"role": "assistant", "content": text}, "done_reason": done_reason,
-                                     "prompt_eval_count": 900, "eval_count": 80})
-
-
-def client_replying(*responses: httpx.Response) -> tuple[httpx.Client, list[dict]]:
-    """A client whose server returns the given responses in turn, recording each request body."""
-    queue, seen = list(responses), []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(json.loads(request.content))
-        return queue.pop(0)
-
-    return httpx.Client(base_url=OLLAMA_URL, transport=httpx.MockTransport(handler)), seen
+from ollama_fakes import VALID, client_replying, ollama_reply
 
 
 @pytest.fixture(autouse=True)
@@ -101,3 +80,17 @@ def test_output_has_one_field_per_flag_and_maps_to_an_assessment():
     assert {*Flag} <= TriageOutput.model_fields.keys()
     assessment = to_assessment(TriageOutput.model_validate(VALID))
     assert assessment.flags == {Flag.LEGAL_THREAT} and assessment.urgency == Urgency.HIGH
+
+
+def tags_client(*names: str) -> httpx.Client:
+    models = [{"name": n, "digest": f"sha-{n}"} for n in names]
+    return httpx.Client(base_url=OLLAMA_URL, transport=httpx.MockTransport(
+        lambda request: httpx.Response(200, json={"models": models})))
+
+
+def test_digest_found_for_a_pulled_model():
+    assert model_digest(tags_client("granite4.2:3b", "qwen3.5:4b"), "qwen3.5:4b") == "sha-qwen3.5:4b"
+
+
+def test_digest_is_none_when_the_model_isnt_pulled():
+    assert model_digest(tags_client("granite4.2:3b"), "qwen3.5:4b") is None
