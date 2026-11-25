@@ -414,7 +414,45 @@ Batch APIs from Anthropic, OpenAI and Google halve their prices if triage can wa
 | A standing attack suite, run on every model or prompt change | Whether a change weakens the injection defences. |
 
 ### 4.8 Cut and possible additions
-*Opens with what we built, by line count: essential code (969 of 1,246 lines) and each addition with its lines and reason. Then each cut and possible addition with its reason, including the output format (CSV with y/n against the brief's JSON example).*
+
+**What we built, by line count.** Counted as in section 3.8: Python code lines, without blank lines, comments or docstrings, each component with its tests.
+
+| Component | Code lines | | Why it's there |
+|---|---|---|---|
+| Pipeline: taxonomy, model call with schema and retries, review policy, runner | 475 | **Essential** | The brief's core. |
+| Evaluation report: reference scoring, sensitive misses, summary checks, workload, cost | 272 | **Essential** | The brief calls the evaluation "the heart" of this part. |
+| Reproducible slice from the archived CFPB file | 113 | **Essential** | The brief asks for a slice you can reproduce. |
+| Reference set: labelling file, generated guide, validation | 109 | **Essential** | The brief asks for a labelled sample and a definition of "correct". |
+| Live triage panel | 117 | Added | **Presentation, and the model trial.** It compares each decision with the reference as it arrives; we used it to choose Granite over Qwen. |
+| Prompt-injection test | 97 | Added | **Evidence.** The brief names injection, and an untested defence is only a claim. The test found the model obeys embedded instructions. |
+| CFPB reference | 43 | Added | **More confidence for little code.** A second, free reference across all 500. |
+| Wilson ranges | 11 | Added | **More confidence for little code.** |
+| Duplicate consistency | 9 | Added | **More confidence for little code.** A free check from the template complaints. |
+| **Total** | **1,246** | 78% essential | |
+
+**What we cut:**
+
+| Cut | Why | Revisit when |
+|---|---|---|
+| A synthetic set for the rare flags | Synthetic cases are cleaner than real ones, so they show that obvious cases get caught, not real-world recall. | Replaced by the enriched real sample below. |
+| A larger-model comparison on a free hosted tier (Gemini) | Every request with our prompt got "503 high demand" on three Flash models, though a tiny test request went through. | Replaced by the local comparison below. |
+| A data-analysis script for the complaints | The review's findings fit section 4.2; a report script would only repeat them. | The slice changes. |
+| Relabelling the reference, or patching the guide, after the label review | In production the reference would be your team's own decisions, not labels made for an evaluation. The inconsistencies are recorded instead (section 4.6). | Your team's decisions become the reference. |
+| A formal measure of `confidence_note` | The brief asks for the field, not a measure of it, and a coded, human-validated measure would only tighten what the keyword check already shows. | A structured second-choice field (below). |
+| Enforcing 1–2-sentence summaries | Some complaints need more to keep the details needed to handle them, and we judged the longer summaries case by case (section 4.5). Enforcing it would mean a re-ask rule and a rerun. | You require the limit (section 6). |
+| JSON output | The output is a CSV with fixed columns and y/n values. It carries the brief's five fields plus the review reasons, tokens and model digest, and opens in a spreadsheet for review. We read the brief's JSON as an example. | Your system ingests JSON (section 6): a writer with the brief's five fields is a small change. |
+| Fine-tuning and a chatbot interface | Out of scope, as the brief says. | — |
+
+**Possible additions:**
+
+| Addition | What it would give | Why not now |
+|---|---|---|
+| A larger-model comparison | The same prompt and schema with an 8–9B model (for example Qwen 3.5 9B, about 6.6 GB, or Granite 4.2 8B, about 5.3 GB) on the 30 dev complaints. Only the model size changes, so it isolates what the small model gives up. The model-made reference can't do that, since it differs in model, provider and setup at once. | The reference already gives a rough comparison with a stronger model; this run would make it controlled. |
+| A structured second choice | An `alternative_category` field beside the free-text note, scored against the reference and usable in the review rule. Notes naming another routing area were the sharper error signal in section 4.5. | The brief asks only for the note, and the keyword check was judged enough for a prototype. |
+| Injection mitigations | Any of: a deterministic screen, like the legal-words rule, that sends complaints addressing the system ("triage", "system note", "ignore … instructions", a pasted JSON record) to a person; a larger or hosted model, which may follow the data-not-instructions rule more reliably (to be measured); or a second, independent check on high-stakes outputs, such as re-running the fraud judgement with the suspicious text removed. Each needs its own check against the attack set and the 80 labelled complaints. | The test was there to find out, not to be patched until it passed. A production rollout needs one (section 4.7). |
+| An enriched real sample for the rare flags | Search the roughly 326,000 complaints already downloaded for likely cases ("suicide", "domestic", "abuse", "disabled", race terms), label those, and score `safety_risk` and `discrimination` on them separately. | It needs another labelling pass the time estimate doesn't cover. |
+| A wider legal-words list | Catches "summons", "suit", "counsel" and "judgment", and stops matching "attorney general". | It changes the stored review reasons, so the outputs need re-scoring; left for a production version. |
+| Priority tiers in the review queue, or a narrower tag rule | Keeps the queue manageable if it outruns your team. | Today every complaint is handled by hand, so review capacity isn't a constraint for the prototype. |
 
 ## 5. Production
 *The memo in brief (architecture, monitoring, data and residency, phased rollout, what we need from PayGuard), linking to the memo and its PDF.*
