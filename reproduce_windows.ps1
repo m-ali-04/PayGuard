@@ -20,6 +20,7 @@ $ProgressPreference = "SilentlyContinue"   # 5.1's download progress bar slows I
 
 # uv's own Python builds are unsigned and Smart App Control blocks them (astral-sh/uv#22869), so every
 # uv command, uvx included, uses python.org's signed build instead, unpacked from its NuGet zip.
+# The .exe launchers uv generates for package commands are unsigned too, so tools run as `python -m`.
 $pythonUrl = "https://api.nuget.org/v3-flatcontainer/python/3.12.10/python.3.12.10.nupkg"
 $pythonSha256 = "0eb85c2dfccccf1b17352de4c397f69194035b7d37149eacc16f1147d93de3b8"
 $env:UV_PYTHON = "$tools\python-org\tools\python.exe"
@@ -58,7 +59,7 @@ Invoke-Step "Write the decision report" @("run", "scripts/fraud/evaluate.py")
 
 # 7. Serve in the background, logging to files so the replay panel has the console to itself.
 Write-Host "`n== Start the scoring API ==" -ForegroundColor Cyan
-$api = Start-Process "$tools\bin\uv.exe" -ArgumentList "run", "uvicorn", "payguard.fraud.api:app" -PassThru `
+$api = Start-Process "$tools\bin\uv.exe" -ArgumentList "run", "python", "-m", "uvicorn", "payguard.fraud.api:app" -PassThru `
     -WindowStyle Hidden -RedirectStandardOutput "api.out.log" -RedirectStandardError "api.err.log"
 try {
     $deadline = (Get-Date).AddSeconds(60)
@@ -77,7 +78,7 @@ finally {
 }
 
 # Last, with the API stopped, so the tests can't load the machine during the replay.
-Invoke-Step "Run the tests" @("run", "pytest")
+Invoke-Step "Run the tests" @("run", "python", "-m", "pytest")
 
 Write-Host "`nDone. Reports are in reports\fraud\. Browse the runs with:" -ForegroundColor Green
-Write-Host '  $env:MLFLOW_DISABLE_TELEMETRY="true"; .venv\Scripts\mlflow.exe ui --backend-store-uri sqlite:///mlflow.db'
+Write-Host '  $env:MLFLOW_DISABLE_TELEMETRY="true"; .venv\Scripts\python.exe -m mlflow ui --backend-store-uri sqlite:///mlflow.db'
