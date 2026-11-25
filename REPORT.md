@@ -544,4 +544,46 @@ We built both prototypes without further input from you. Wherever we needed an a
 | **Output format.** What format does your system ingest? | CSV with y/n values and extra columns (review reasons, tokens, model digest); the brief's example was JSON. | A JSON writer with the brief's five fields. |
 
 ## 7. Engineering and scope
-*Repository structure; shared code paths (training and serving; taxonomy, prompt and labelling guide); the tests and what they guard; reproducibility (hash-checked data, clean-room runs); the workflow (branches, PRs, automated review); AI use; size against the ~3 h estimate (1,271 of 2,396 Python code lines essential, with the counting method); an overview of the cuts we made and the additions we suggest, and why, linking to each part's full list (3.8, 4.8); what could be cut if the timescale were binding, and how far the possible additions would go.*
+
+**Repository structure.** One Python package with a module per problem, and the same split in every folder:
+- `src/payguard/fraud/` and `src/payguard/triage/`: the shared code, used by the scripts, the tests and the API;
+- `scripts/fraud/` and `scripts/triage/`: entry points that train, evaluate, replay and triage, each writing a Markdown report;
+- `reports/fraud/` and `reports/triage/`: the generated reports;
+- `tests/fraud/` and `tests/triage/`: the tests;
+- `data/triage/`: the committed complaint slice, reference labels, attack cases and model outputs;
+- `docs/`: the production memo.
+
+One `pyproject.toml` and one lock file cover both parts, with the analysis tools in their own dependency group so the serving runtime doesn't install them. We considered a self-contained folder per problem, each with its own dependency file and lock, but nothing needed that yet.
+
+**Shared code paths.** In fraud detection, training, the decision report, the tests and the API share one preprocessing path inside the saved model, and a parity check confirms served scores equal offline scores (section 3.4). In complaint triage, one taxonomy file feeds the prompt, the labelling guide and the CFPB mapping, so the model, the reference and the weak reference work from identical definitions (section 4.3). The two parts share their report helpers.
+
+**98 tests, written for behaviour rather than coverage** (34 for fraud detection, 64 for triage). Examples of what they guard:
+- **Fraud detection:** the windows cover every row once; a transaction scores the same in any field order; a saved and reloaded model scores identically; the boosted trees don't saturate on your training window (the test fails with the old setting); the API refuses invalid values and won't start without its run's threshold; the replay matches offline scores.
+- **Complaint triage:** a truncated answer is asked again and its tokens add up; a category outside the taxonomy is rejected; an unreachable server stops the batch, while a dropped connection fails only its own complaint; complaint text can't close its fence tag in any spelling; a CFPB tag survives an empty narrative or a failed call; legal words send a complaint to a person whatever the model says; every attack case is built from its real complaint.
+
+Tests that need the fraud data skip when it hasn't been downloaded.
+
+**Reproducibility.** The project runs from a clean environment with uv, a lock file and Python 3.12. The fraud data downloads with a hash check; the complaint slice is committed and rebuilds byte for byte; and the triage outputs are committed, so the triage report rebuilds without the model. A clean-room run of fraud detection, from a fresh clone with an isolated uv and empty caches, reproduced the data report byte for byte and the decision report apart from run IDs and timing, with identical replay decisions and exact parity. The same run for complaint triage is still to do. On Windows the project runs under WSL2: with Smart App Control on, native Windows blocks the unsigned compiled files the scientific Python packages ship.
+
+**Workflow.** `main` always works. Each step happened on a short-lived branch with conventional commits, and a pull request that explains what changed, why, and how to verify it. An automated code review ran on each pull request; its findings were posted as comments, and each was fixed or answered before merging. Decisions and their reasons were logged in [CONTEXT.md](CONTEXT.md) as they were made.
+
+**AI use.** Claude Code wrote essentially all the code and drafted the documents, in short sessions under our direction; every change was walked through and reviewed before merging. Eraser's DiagramGPT drew the memo's architecture figure from a prompt Claude Code wrote. [AI_USAGE.md](AI_USAGE.md) records each component.
+
+**Size against the ~3-hour estimate.** The brief estimates about 3 hours per part, which we read as a guide (section 6). Of 2,396 Python code lines, 1,271 (53%) are essential to the brief: 297 of 1,145 in fraud detection (26%), 969 of 1,246 in complaint triage (78%), and 5 shared. Lines are counted without blanks, comments or docstrings, each component with its tests; files that mix purposes are split by function, to within a few lines.
+
+**Why we built beyond the brief.** Every addition has one of five reasons, set out component by component in sections 3.8 and 4.8:
+
+| Reason | Components | Code lines |
+|---|---|---|
+| **Production in mind** | Fraud: scoring API, replay and parity check, MLflow tracking | 445 |
+| **Evidence the decisions rest on** | Fraud: data analysis report. Triage: prompt-injection test | 281 |
+| **Presentation** | The two live panels (the triage panel also ran the model trial) | 211 |
+| **More confidence for little code** | Fraud: bootstrap ranges, complexity notes, latency measurement. Triage: CFPB reference, Wilson ranges, duplicate consistency | 131 |
+| **Reproducibility** | Fraud: hash-checked download | 57 |
+| **Total added** | | **1,125** |
+
+**If the timescale were binding,** these would come out first, each step leaving a working prototype that still answers the brief:
+- **Fraud detection:** the live panel (94 lines), then the replay and parity check (213), the API (151), MLflow tracking (81) and the download script (57). Real-time would then rest on the written note and the model-only latency figure, and 549 lines would remain.
+- **Complaint triage:** the live panel (117), then the CFPB reference (43) and the consistency check (9), leaving 1,077 lines. The injection test stays, since the brief names injection.
+
+**How far a production build would go.** The possible additions (sections 3.8 and 4.8) and the memo show the other direction: streaming with Kafka and Flink, velocity features, monitoring dashboards, time-of-day handling, injection mitigations, a larger model and an enriched sample for the rare flags.
