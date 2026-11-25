@@ -170,6 +170,26 @@ The process ran in this order: report design (plan mode) → budget review → b
 
 **Possible addition (owner's idea): time-of-day handling, once more history shows the pattern regularly.** The owner proposed splitting the day into peak and quiet hours with a separate model for each, if the relationship holds up over a longer period. Options from cheapest to most involved: (1) per-segment thresholds (one model, a different cut for busy and quiet hours; directly addresses the measured drift); (2) a time-of-day feature in one model (needs a reliable clock); (3) separate models (each trains on fewer frauds; two models to maintain). Usual path: try 1, then 2, then 3 only if the decision report shows a gain.
 
+### Scoring API (2026-11-25)
+Planned in plan mode, built in three short sessions (S1 store helpers and threshold, S2 API and tests, S3 manual run and docs).
+- **Decision: FastAPI + uvicorn.** Our own small endpoint, so the response can carry the alert decision. Already installed through MLflow (its own scoring server uses the same stack), so declaring them added no download. `mlflow models serve` was the alternative: no API code, but it returns probabilities only, so the threshold would have to be hidden inside a custom model wrapper.
+- **Decision: the selected model is a constant in code** (`SELECTED = "hgb"` in `models.py`). The MLflow registry with an alias (e.g. `fraud@champion`) is MLflow's standard promotion flow, but it adds a registry step and a promote command; changing the model is a reviewed code change for now.
+- **Decision: evaluate.py logs the live threshold on each model's run** (metric `live_threshold`, from `threshold_for_budget`). The API reads it from the same run it loads, and refuses to start if that run has no threshold (a model retrained after the last evaluation). Computing it at API start-up was the alternative; it would make serving depend on the dataset and the window split. A metric, not a param, so re-running evaluate.py works. The re-run changed only the report's latency rows (timing noise).
+- **Owner's requirement: a clean, professional interface.** Clarified as the API contract, not a web page: versioned paths (`/v1/score`, `/v1/health`), typed request and response models, descriptions and an example on the `/docs` page.
+- **Dependencies:** fastapi and uvicorn at runtime; httpx in the dev group (FastAPI's test client needs it).
+- **Finding: NaN requests returned 500.** FastAPI's standard 422 echoes each rejected value back, and NaN can't be written as JSON, so the error handler crashed. Found by a test and confirmed against the app. **Fix:** a custom 422 handler that leaves out the echoed value (`loc` and `msg` still name the field); a small departure from FastAPI's standard error body. Side effect: transaction values aren't repeated back in errors.
+- **The docs example is synthetic** (components 0, Amount 25), so no client transaction is committed to the source. The plan had said a real transaction.
+- **Store helpers moved to `src/payguard/fraud/tracking.py`** so the API doesn't import from `scripts/`; they raise `StoreError` instead of exiting, and each caller decides how to report it.
+- **Manual check against the real server:** three test-window transactions scored bit-for-bit equal to offline `predict_proba`; the stored threshold reads back exactly.
+- **Discussion: send the data in time order and compare flags with the truth.** The owner asked whether we test this. Not yet: that's the replay script. It sends the test window in arrival order through the API (model fields only; the label stays in the script) and counts caught, false alerts and missed, with per-request latency. Because the model scores each transaction independently, its totals should match the decision report's operational view exactly, which makes it the parity check as well.
+- **Decision: the replay comes next, before Problem 2.** Reason (Claude's recommendation, accepted by the owner): it's part of the base design (Option A), not an addition; it closes two open commitments (end-to-end p99 against the 50 ms limit, and the CLAUDE.md parity test); it's the last part of the presentation; and it's about one coding session. A smaller fallback (parity test only, via pytest) was offered in case time is short.
+- **Code review on PR #6: 7 minor findings, no blocker.** Claude recommended and the owner approved:
+  - **fixed:** strict request types (`true` and `"25"` were read as 1.0 and 25.0); a test for the start-up success path; a test fixture that restores MLflow's process-wide settings;
+  - **comment added:** why the store sits at the repo root;
+  - **skipped:** the empty `mlflow.db` created on a fresh clone;
+  - **deferred to the replay:** concurrent-load latency (OpenMP threads per request). One request at a time matches the synchronous design, and concurrency depends on traffic volume we don't assume.
+  - **The start-up traceback finding was approved as a fix but turned out not to be fixable cleanly:** uvicorn prints a traceback for any start-up failure, even `sys.exit`, and the fix message is already its last line. Left unchanged and reported to the owner.
+
 ### Cost of Errors
 - Weigh missed fraud against blocking genuine customers using standard industry practice, on the lenient side.
 

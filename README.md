@@ -34,7 +34,17 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
    ```bash
    uv run scripts/evaluate.py
    ```
-7. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
+7. **Serve the selected model.** The API loads the selected model's latest run and the threshold that step 6 logged on that same run (it refuses to start if that run hasn't been evaluated):
+   ```bash
+   uv run uvicorn payguard.fraud.api:app   # from the repo root; interactive docs at http://127.0.0.1:8000/docs
+   ```
+   Score one transaction (the 28 components and Amount; other fields are ignored):
+   ```bash
+   curl -s http://127.0.0.1:8000/v1/score -H 'content-type: application/json' \
+     -d "{$(for i in $(seq 1 28); do printf '"V%d": 0, ' $i; done)\"Amount\": 25}"
+   # {"fraud_score":…,"alert":false,"threshold":0.357…,"model_run_id":"…"}
+   ```
+8. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
    ```bash
    uv run pytest
    ```
@@ -64,7 +74,8 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Class imbalance:** no resampling. Logistic regression weights the rare fraud class up (`class_weight="balanced"`); the trees use defaults.
 - **Features: the 28 anonymised components and Amount (log-transformed).** `Time` counts seconds since the file started, so it can't be computed live, and it's dropped.
 - **Preprocessing lives inside each model's saved pipeline**, so the API loads one artifact that carries its own transforms. The pipeline picks its input fields by name, so a raw transaction scores the same in any field order or with extra fields; tests check this, and that a saved and reloaded model gives identical scores.
-- **Models are logged with MLflow** in its default safe format (skops), with the pinned dependency versions and the model's contract recorded beside it: the 29 model fields in (no `Time`, which can't be computed live), fraud probabilities out. Code lives in `src/payguard/fraud/` (`data.py` for the windows, `models.py` for the pipelines), shared by training, tests and, later, the API.
+- **Models are logged with MLflow** in its default safe format (skops), with the pinned dependency versions and the model's contract recorded beside it: the 29 model fields in (no `Time`, which can't be computed live), fraud probabilities out. Code lives in `src/payguard/fraud/` (`data.py` for the windows, `models.py` for the pipelines), shared by training, tests and the API.
+- **Scoring API (FastAPI):** `POST /v1/score` takes one transaction and returns the fraud score, the alert decision, the threshold and the MLflow run that scored it; `GET /v1/health` shows the model being served. It serves the selected model (`SELECTED` in `models.py`) from its latest MLflow run, with the threshold `scripts/evaluate.py` logs on that same run, so a model is never paired with another model's cut. Requests are validated against the 29 model fields (built from the same field list as the model; NaN, Infinity and negative amounts are refused with a 422 naming the field), and paths are versioned so the contract can change without breaking callers.
 - **No training-serving skew by design:** training and serving share one preprocessing code path, and a parity test checks the API's scores against the offline scores.
 
 ### Evaluation
@@ -107,6 +118,8 @@ Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv
 - **Possible addition: anomaly detection** (for example Isolation Forest) as a companion signal for new fraud patterns that labels don't cover yet.
 - **Cut: SHAP explanations.** The client didn't ask for explainability, and per-decision attributions would point to anonymised PCA fields with no business meaning. Revisit if the client or a regulator requires explanations.
 - **Possible addition: time-of-day handling,** once several weeks of data show the day/night pattern regularly. From cheapest to most involved: separate thresholds for busy and quiet hours, a time-of-day feature, or separate models for each (each would train on fewer frauds). Each option would be tested through the decision report.
+- **Cut: authentication, rate limiting and request logging on the API.** They belong to the client's gateway and platform; request logging and monitoring are covered by the Kafka addition above.
+- **Cut: a browser demo page.** The interactive docs page (`/docs`) already lets anyone send a transaction and see the decision; the live demo is the replay.
 - **Out of scope: feature store.** It's how enterprises centralise feature definitions, but the prototype's single shared code path covers the same need at this scale.
 
 ### Limitations
@@ -116,6 +129,7 @@ Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv
 - Identical genuine transactions recur at different times, some across window boundaries (805 of 4,383 groups span more than one window), consistent with recurring payments. The model sees these patterns in training, as it would live.
 - The threshold is set on the night half of day 2 and tested on the daytime half. Scores run lower by day, so the fixed threshold flags about half the budget and misses daytime fraud. With 48 hours, drift can't be told apart from time-of-day effects. In production, the threshold would be recalibrated regularly on a representative period.
 - The features are anonymised with PCA, which limits feature engineering and how well we can explain decisions.
+- The API runs as a single local process with no authentication. End-to-end latency through the API is measured by the replay step; the decision report's figures are for the model alone.
 
 ## Problem 2: Complaint Triage
 
