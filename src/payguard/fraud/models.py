@@ -45,6 +45,9 @@ def hgb() -> Pipeline:
 
 
 CANDIDATES = {"logreg": logreg, "hgb": hgb}
+# The owner's choice from the decision report (README "Results"); the API serves this candidate.
+SELECTED = "hgb"
+
 
 def save_options(model: Pipeline, example: pd.DataFrame) -> dict:
     """Arguments for every MLflow save, so training and tests store models the same way.

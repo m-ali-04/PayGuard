@@ -7,7 +7,6 @@ No scores are computed here: the decision report evaluates the logged models.
 import sys
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 
 import mlflow
 import mlflow.sklearn
@@ -16,25 +15,7 @@ import pandas as pd
 from get_data import DEST, is_valid
 from payguard.fraud.data import FEATURES, LABEL, WINDOWS, load, split
 from payguard.fraud.models import CANDIDATES, save_options
-
-ROOT = Path(__file__).resolve().parents[1]
-EXPERIMENT = "fraud-shortlist"
-
-
-def use_local_store() -> None:
-    # MLflow's default store and artifact folder resolve against the working directory;
-    # pin both to the repo root so runs land in one place wherever the script is started.
-    mlflow.set_tracking_uri(f"sqlite:///{ROOT / 'mlflow.db'}")
-    experiment = mlflow.get_experiment_by_name(EXPERIMENT)
-    if experiment is None:
-        mlflow.create_experiment(EXPERIMENT, artifact_location=(ROOT / "mlruns").as_uri())
-    elif experiment.lifecycle_stage == "deleted":
-        # MLflow only soft-deletes, so the name stays taken. Not restored automatically,
-        # since that would quietly undo the deletion.
-        sys.exit(f"Experiment '{EXPERIMENT}' is deleted. Restore it in the MLflow UI, or purge it "
-                 "from the repo root with: uv run mlflow gc --backend-store-uri sqlite:///mlflow.db "
-                 "--tracking-uri sqlite:///mlflow.db")
-    mlflow.set_experiment(EXPERIMENT)
+from payguard.fraud.tracking import EXPERIMENT, StoreError, use_local_store
 
 
 def train(name: str, train_df: pd.DataFrame, session: str) -> None:
@@ -61,7 +42,10 @@ def main() -> int:
         print(f"No verified dataset at {DEST}. Run: uv run scripts/get_data.py", file=sys.stderr)
         return 1
     train_df = split(load(DEST))["train"]
-    use_local_store()
+    try:
+        use_local_store()
+    except StoreError as e:
+        sys.exit(str(e))
     session = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     for name in CANDIDATES:
         train(name, train_df, session)

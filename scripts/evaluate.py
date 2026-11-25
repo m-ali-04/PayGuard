@@ -25,7 +25,7 @@ from payguard.fraud.evaluation import (
     threshold_for_budget,
 )
 from payguard.fraud.models import CANDIDATES
-from train import EXPERIMENT, ROOT, use_local_store
+from payguard.fraud.tracking import ROOT, StoreError, latest_run, use_local_store
 
 REPORT = ROOT / "reports" / "decision_report.md"
 LATENCY_LIMIT_MS = 50
@@ -40,26 +40,14 @@ NOTES = {
 }
 
 
-def latest_run(name: str) -> pd.Series:
-    runs = mlflow.search_runs(
-        experiment_names=[EXPERIMENT],
-        filter_string=f"params.candidate = '{name}' and attributes.status = 'FINISHED'",
-        order_by=["start_time DESC"],
-        max_results=1,
-    )
-    if runs.empty:
-        sys.exit(f"No finished '{name}' run in experiment '{EXPERIMENT}'. Run: uv run scripts/train.py")
-    return runs.iloc[0]
-
-
 def latest_runs() -> dict[str, str]:
     """Run ID of each candidate's latest run, refusing to mix training sessions: if train.py stopped
     partway, the newest runs would otherwise pair a fresh model with a stale one."""
     runs = {name: latest_run(name) for name in CANDIDATES}
     sessions = {name: run.get("params.session") for name, run in runs.items()}
     if None in sessions.values() or len(set(sessions.values())) > 1:
-        sys.exit(f"The latest runs come from different training sessions {sessions}. "
-                 "Run: uv run scripts/train.py")
+        raise StoreError(f"The latest runs come from different training sessions {sessions}. "
+                         "Run: uv run scripts/train.py")
     return {name: run.run_id for name, run in runs.items()}
 
 
@@ -125,6 +113,8 @@ def log_to_mlflow(r: dict) -> None:
             "test_roc_auc": r["test"]["roc_auc"],
             "val_ap": r["val"]["ap"],
             "p99_ms": r["p99"],
+            # Read by the API, so the model and its cut always come from the same run.
+            "live_threshold": r["threshold"],
         })
 
 
@@ -225,9 +215,13 @@ def main() -> int:
         print(f"No verified dataset at {DEST}. Run: uv run scripts/get_data.py", file=sys.stderr)
         return 1
     windows = split(load(DEST))
-    use_local_store()
+    try:
+        use_local_store()
+        run_ids = latest_runs()
+    except StoreError as e:
+        sys.exit(str(e))
     results = {}
-    for name, run_id in latest_runs().items():
+    for name, run_id in run_ids.items():
         results[name] = evaluate(run_id, windows)
         log_to_mlflow(results[name])
         print(f"Evaluated {name} (run {results[name]['run_id'][:8]})")

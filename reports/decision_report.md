@@ -42,8 +42,8 @@ Validation (24–36h) covers the quiet night hours (fraud 0.20%); test is daytim
 
 | Model | p50 ms | p99 ms | ≤ 50 ms |
 |---|---|---|---|
-| logreg | 3.41 | 6.91 | pass |
-| hgb | 5.97 | 15.55 | pass |
+| logreg | 3.42 | 6.66 | pass |
+| hgb | 5.85 | 14.21 | pass |
 
 2,000 calls after 50 warm-up, on Linux-6.18.58.1-microsoft-standard-WSL2-x86_64-with-glibc2.43, 22 logical cores. Depends on hardware. End-to-end API latency is measured in the API step.
 
