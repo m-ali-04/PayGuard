@@ -169,4 +169,11 @@ Full numbers: [decision report](reports/fraud/decision_report.md) (regenerate wi
 - **Reproducibility:** the slice is committed (CFPB data is public domain, CC0; 822 KB). `scripts/triage/get_complaints.py --rebuild` re-downloads the same 10 MB and checks both hashes:
   - first 10 MB of the archive: `334b6c638fe4f2395e6c5d2b95d33201a5eff7ab492a27028f035fe3c4a014d5`
   - slice: `42b27d0b1f7e7a593840dd3192c74390c3fb341d79dd88fd911c9d8224a74dcc`
-- **Why only the first 10 MB:** a full download would cost every rebuild 1.4 GB to keep 500 rows. The trade-off: the sample reflects the order of CFPB's file, so its date and product mix is checked in the data review.
+- **Why only the first 10 MB:** a full download would cost every rebuild 1.4 GB to keep 500 rows. The risk was a sample skewed by the order of CFPB's file. The data review ruled that out: the chunk's product mix matches CFPB's whole database for the same months.
+- **Data review** (ad hoc; no report script, by decision):
+  - **Representative of published narratives.** CFPB's database is ~90% credit reporting, but only 0.1% of credit-reporting complaints have a published narrative (25.8% for other products). So the slice is mostly debt collection (32%), checking (19%) and credit card (16%). Narratives are published only with the consumer's consent, so this shows which narratives were published, not which complaints had text.
+  - **Short texts:** median ~270 tokens, longest ~2,500, so no truncation or chunking is needed.
+  - **Noisy CFPB labels:** one identical template complaint appears 12 times against 12 companies with different product labels. CFPB's product field follows the company more than the text, so it can only serve as a weak reference label. Duplicates are kept: they're real data and give a free consistency check.
+  - **Many sensitive cases:** keyword counts suggest about 22% mention fraud or unauthorised activity and 12% legal action. 19% are tagged Servicemember or Older American.
+  - **No prompt injections** in the real data, so the adversarial cases will be synthetic and kept separate.
+  - **Redaction:** CFPB removed personal details before publishing (`XXXX`, `XX/XX/2026`; amounts as `{$…}`). That hides names, dates and deadlines the triage might use. The client's own complaints would arrive unredacted, which raises a data-handling question for production (personal data sent to an LLM provider).
