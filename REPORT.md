@@ -11,7 +11,23 @@
 ## 3. Fraud detection
 
 ### 3.1 Framing and scope
-*Scoring inside the authorisation window; synchronous single-transaction scoring; the p99 ≤ 50 ms limit and where it comes from; what "good" means operationally (alerts a team can review); what was out of scope (tuning, ensembling, load testing).*
+
+**The question.** You asked for a model that flags fraudulent card transactions and works on live traffic. We framed it as three tests: can a model score each transaction while its authorisation is still pending, catch a useful share of fraud, and keep false alerts to a number your team can review?
+
+**Scoring inside the authorisation.** A card authorisation takes about 100–300 ms end to end, and fraud scoring usually gets 10–50 ms of that (practitioner and vendor figures; there's no formal standard). A batch job can't decide before the payment completes, so the prototype scores one transaction at a time, synchronously, and returns the decision with the score. Grouping requests that arrive within a few milliseconds (micro-batching) would raise throughput without changing that contract; it's a serving option for later.
+
+**Latency limit: p99 within 50 ms per transaction,** the lenient end of the published range. Latency is a requirement to meet with the right serving tools, not a reason to rule out a model.
+
+**What a good result means.** Every alert costs analyst time or customer friction, so the number of alerts your team can review sets how the model is used. We judge models by the frauds they catch within an alert budget, a fixed share of transactions (section 3.3). Neither your review capacity nor the cost of a false alert against a missed fraud was available, so the budget is our assumption (section 6).
+
+**Showing real time on a static file.** Your data arrived as a file, so a replay script sends the transactions to a local scoring API in time order, spaced as they were recorded (4 times faster for the demo), and measures each request's latency. It then checks that the served scores match the offline model's exactly, so serving adds nothing the evaluation didn't see. A streaming pipeline (Kafka) is the production route and the memo covers it; for the prototype, a request/response API matches the authorisation path.
+
+**Complexity has to earn its place.** Every model is set beside a simpler baseline, and a gain is weighed against what it costs in latency, size and explainability (section 3.5).
+
+**Out of scope:**
+- extensive hyperparameter tuning and ensembling, which raise scores without making the system more useful in practice; both models run on default settings apart from class weighting and two stability settings, each with its reason (section 3.4);
+- load testing: the replay shows the model on your traffic at a realistic pace, not the capacity of a production deployment, which depends on traffic volumes we don't know;
+- anything the data can't support (velocity features, card-level metrics, label delay), recorded in section 3.7 instead.
 
 ### 3.2 Data findings
 *About 2 days, PCA-anonymised, no card, customer or transaction ID; 0.173% fraud; drift between the days; 1,081 exact duplicates (fraud 10x more common inside them); fraud 4.3x higher in quiet hours; what each of these allows and rules out. Links to the data report.*
