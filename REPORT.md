@@ -30,7 +30,21 @@
 - anything the data can't support (velocity features, card-level metrics, label delay), recorded in section 3.7 instead.
 
 ### 3.2 Data findings
-*About 2 days, PCA-anonymised, no card, customer or transaction ID; 0.173% fraud; drift between the days; 1,081 exact duplicates (fraud 10x more common inside them); fraud 4.3x higher in quiet hours; what each of these allows and rules out. Links to the data report.*
+
+Your file holds 284,807 card transactions over 48 hours, 492 of them fraud (0.173%). Each has 28 anonymised components (V1–V28, from a PCA transformation applied before we received the data), the amount, the fraud label, and `Time`, the seconds since the file's first transaction. A script writes the full analysis, with figures, to the [data report](reports/fraud/data_understanding.md). The analysis only looks: no transaction was changed or removed.
+
+| Finding | What it allows or rules out |
+|---|---|
+| **Two days, one daily cycle.** Day 1 has 281 frauds, day 2 has 211. | Too short to model label delay (weeks in practice) or to tell drift apart from time of day. Day 2's frauds are split between setting the threshold (96) and the test (115), so each test fraud is worth almost 1% of recall, and differences of a few frauds are noise (section 3.3). |
+| **No card, customer or transaction ID.** | No velocity features (a card's recent activity), no card-level metrics, and no way to tell duplicates apart. Each transaction is scored on its own. |
+| **Anonymised components.** | Little room for feature engineering, and explanations would point to components with no business meaning. The upstream transformation has to stay exactly the same at serving time. |
+| **The days differ.** 7 components shift between day 1 and day 2 among genuine transactions alone (KS above 0.2, largest V3 at 0.52). | A time-ordered split, not a random one: a model trained on day 1 meets a slightly different population on day 2, as it would live. A random split would mix the days and overstate live performance. |
+| **Strong single signals.** 7 components each separate fraud well on their own (KS above 0.7, led by V14, V10 and V12). | A simple model is a credible baseline, and a more complex one has to show a gain beyond it. |
+| **Fraud clusters in quiet hours:** 0.561% of transactions in the 14 quietest hours, against 0.131% elsewhere (4.3 times). | Time of day carries signal, but `Time` counts from an unknown start and can't be computed live, so it's dropped; an hour-of-day feature would rest on one night and an assumed clock (section 3.8). A threshold set at night also behaves differently by day (section 3.5). |
+| **Duplicates.** 1,081 extra copies of identical rows, all within the same second, none with conflicting labels. Fraud is 10 times more common inside them (1.73% against 0.173%): 13 distinct frauds appear 32 times. A further 8,063 rows repeat an earlier transaction's values at a different second, all genuine. | Copies share a second, so they can't straddle a time split. We kept them: they're part of your real stream, and deduplication belongs upstream, at ingestion, by transaction ID. The repeats look like recurring payments, which recur live too. |
+| **Amount.** 37% of frauds are for 1.00 or less, against 11% of genuine transactions, yet fraud's largest amounts run higher. | Amount alone separates weakly and needs a log transform for scale-sensitive models. It's the only field that puts a value on a missed fraud, in a currency the data doesn't name. |
+
+The KS cut-offs (0.2 and 0.7) are reporting thresholds we chose, not industry standards.
 
 ### 3.3 Evaluation design
 *Time split, and why not random k-fold or forward-chaining; no gap between windows; the 0.2% alert budget and how it was set (0.1% first, changed before any model was scored); metrics (average precision as the headline, precision and recall at the budget, ROC-AUC for reference); the selection rule fixed in advance; bootstrap ranges as information, not a gate.*
