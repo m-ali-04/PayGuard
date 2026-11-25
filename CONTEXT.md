@@ -24,6 +24,7 @@ Running log of context provided about the project. Items that belong in CLAUDE.m
   - results
   - what was cut and why, or why something extra was added
 
+  *(Superseded 2026-11-26: the README covers the systems and how to run them, and the strategy story moves to REPORT.md; see "Documentation: README and Report".)*
 - Tooling: **uv + pyproject.toml + uv.lock, Python 3.12** (owner approved).
 - The data file downloaded from Kaggle has the same SHA-256 as the public mirror copy: `76274b69…a89`.
 
@@ -368,6 +369,17 @@ Planned in plan mode, built in three short sessions (S1 store helpers and thresh
 - **Assembled into `docs/memo.md` (2026-11-26).** Header: To the CTO, PayGuard; From the Solutions Architect, Stixor; titled just "Memo". Consistency fixes (owner): one name, "velocity features"; "limit" for latency so "budget" only means alerts; the CTO addressed as "you" throughout. Length is estimated at 2.5–3 pages; cuts are decided at the PDF step.
 - **PDF (owner, 2026-11-26): route A, Markdown → HTML → headless Chrome.** It needs no project dependency, and the converter version is pinned. The build tooling lives in `docs/` (`build_memo_pdf.sh`, `memo.css`), with a README line on rebuilding. At first the PDF ran to 2¼ pages. The owner chose a tighter layout (9.5pt, 12 mm margins) and, since that wasn't enough, merged the privacy table's "how" and "tools" columns into one. Result: exactly 2 pages, with no text cut. Body text is justified, and `docs/memo.pdf` is committed so the memo can be downloaded straight from the repo (rebuild and recommit after each memo edit). Two assembly bugs were fixed along the way: the header lines rendered as one line, and the architecture list printed inline.
 - **Model items for the memo:** threshold recalibration; time-of-day handling (busy/quiet thresholds, then an hour-of-day feature, then separate models); anomaly detection as a companion signal; card/customer ID → velocity features and card-level metrics; transaction ID → upstream deduplication (dedupe-for-fitting stays a possible addition); label delay drives the retraining cadence; SHAP if the regulator requires it; forward-chaining validation once weeks of data exist.
+
+## Documentation: README and Report (2026-11-26)
+- **Owner's direction:** the README and memo must read as if they came from someone who could be put in front of a client. One document gathers every finding, method and consideration in a sensible structure and makes the brief's five assessment criteria stand out, in the brief's order of importance: judgment (problem framing, metric choices, scope decisions, honesty about limitations); evaluation rigour, especially for the LLM component; code quality (clear, prototype-appropriate structure, not enterprise ceremony); communication; results (matter least if the method is sound). "Questions" means everything we assumed or wanted to know and noted along the way.
+- **Decision (owner): two files.** `README.md` explains the systems and how to run them; `REPORT.md` tells the story of the project without leaving out any detail or consideration. CONTEXT.md stays the full decision log; the report links to it, to the generated reports, the memo and AI_USAGE.md.
+- **Decisions (owner) on Claude's options, each the recommended one:**
+  - **Report structure:** one story per part in roughly the criteria order (framing → evaluation → build → results → limitations), with a reading guide at the top mapping each criterion to its sections. Rejected: top-level sections by criterion, which split each part's story across four sections and read like a self-assessment.
+  - **Location:** `REPORT.md` at the repo root, next to the README. Rejected: `docs/report.md` (one click further away).
+  - **README keeps** an overview with the headline result for each system, linking to the report and the memo, then layout, setup, run steps, the memo rebuild, tests and workflow. Rejected: setup and run only, which would leave a README-only reader not knowing how well the systems work.
+  - **Questions for PayGuard:** a table per part with the question, what we assumed meanwhile, and what changes with the answer. Rejected: a grouped list without the impact.
+- **Cuts and additions (owner):** each part keeps its full list of cuts, additions and possible additions with reasons (sections 3.8 and 4.8); section 7 gives the overview and the scope reasoning, linking to them. Rejected: gathering both parts' lists into section 7 alone.
+- **CLAUDE.md updated (owner approved):** "Keep README.md (what each system is, setup, how to run it) and REPORT.md (approach, findings, results, limitations, what was cut and why or why something extra was added, and questions for the client) current. Update them when a strategy decision is made, not at the end."
 
 ## Team & Roles
 
