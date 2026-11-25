@@ -12,6 +12,7 @@ Tested from a clean environment on Linux (WSL2 on Windows 11). You need `curl` a
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
+   Then open a new terminal, or run `source $HOME/.local/bin/env`, so the shell finds `uv`.
 2. **Install dependencies.** This also installs Python 3.12 if it's missing:
    ```bash
    uv sync
@@ -32,6 +33,7 @@ Tested from a clean environment on Linux (WSL2 on Windows 11). You need `curl` a
    uv run scripts/fraud/train.py
    uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # from the repo root; browse at http://127.0.0.1:5000
    ```
+   MLflow may print a hint about an agent "skill" and a "Failed to resolve installed pip version" warning in this and later steps. Both are harmless (the warning appears because uv's environments don't include pip); `MLFLOW_DISABLE_AGENT_HINT=1` hides the hint.
 6. **Write the decision report.** This scores the latest run of each model on the validation and test windows, writes `reports/fraud/decision_report.md` and logs the headline metrics to each model's MLflow run (about 3 minutes, mostly the bootstrap):
    ```bash
    uv run scripts/fraud/evaluate.py
@@ -44,6 +46,7 @@ Tested from a clean environment on Linux (WSL2 on Windows 11). You need `curl` a
    ```bash
    uv run scripts/fraud/replay.py
    uv run scripts/fraud/replay.py --start 39:31 --length 20   # another slice, same pace (keep the speed low enough that requests don't overlap)
+   uv run scripts/fraud/replay.py --url http://127.0.0.1:8001   # if port 8000 is taken: start the API in step 7 with --port 8001
    ```
    Score one transaction (the 28 components and Amount; other fields are ignored):
    ```bash
