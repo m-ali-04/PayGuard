@@ -237,7 +237,26 @@ Planned in plan mode, built in three short sessions (S1 store helpers and thresh
 
 ## Problem 2: Complaint Triage
 
-*(Context to come)*
+### Brief (from the client, 2026-11-25)
+- **Goal:** an LLM pipeline that turns a raw complaint narrative into a structured triage record. Estimate ~3 hours.
+- **Data:** CFPB Consumer Complaint Database, a filtered slice of ~300–500 complaints **with consumer narratives**, any product. The exact slice must be documented so the client can reproduce it.
+- **Output record:** `category` (routing destination from our own taxonomy of 5–8 categories), `urgency` (low|medium|high), `summary` (1–2 sentences), `requires_human` (bool), `confidence_note` (when/why the triage might be wrong).
+- **Provider:** any LLM, free-tier or local is fine; they evaluate the engineering, not the API budget.
+- **What they want to see:**
+  - The LLM handled robustly as a component: structured output enforcement, failure/retry handling, malformed responses.
+  - **An evaluation approach (the heart of Part B):** hand-label a small sample, define what "correct" means, measure something, and say what we'd measure at scale.
+  - Failure-mode awareness: hallucinated categories, prompt injection via complaint text, sensitive cases (fraud allegations, legal threats) that must never be auto-closed.
+  - Cost/latency awareness: rough per-complaint cost and what it implies at **50,000 complaints/month** (an operating figure given by the client).
+- **Not wanted:** fine-tuning; a chatbot UI. A script or notebook that processes a batch is exactly right.
+
+### Data source: narratives removed from the live CFPB database (2026-11-25)
+- **Finding (tested on the live service):** the API ignores `has_narrative` (19,397,176 records either way) and rejects `complaint_what_happened` as a field; the current bulk `complaints.csv.zip` (371 MB, 2026-11-24) has no narrative column. CFPB release notes: Release 24 (Sept 2026) removed narratives; Release 23 (July 2026) retired JSON export and capped filtered CSV exports at 100,000 rows. The brief's source can't supply the pipeline's input as written.
+- **Options discussed:** (1) an archived pre-removal copy, documented; (2) ask the client for a narrative sample; (3) synthetic narratives on real metadata (rejected as circular for the evaluation).
+- **Decision (owner):** the owner emails the client about it and proceeds on the documented assumption that we use an older copy of the dataset. Access had to be proven first.
+- **Access proven:** Internet Archive snapshot of CFPB's own bulk file, `https://web.archive.org/web/20260815141332id_/https://files.consumerfinance.gov/ccdb/complaints.csv.zip` (captured 2026-08-15; original Last-Modified 2026-08-15; 1,415,011,387 bytes). Its header includes `Consumer complaint narrative` (16 columns), and the first rows hold real redacted narratives (`XXXX`, `XX/XX/2023`). The `id_` URL serves the raw archived bytes, so the snapshot is fixed; a SHA-256 is recorded on full download.
+- **How the slice reaches a clean environment, discussion:** a full download would cost every clean setup 1.4 GB from the Internet Archive (slow, sometimes unreliable) to keep a few hundred rows. Options: (A) full download for everyone; (B) commit the small slice and add a rebuild script that streams a fixed first chunk of the immutable snapshot, hashes it and draws a fixed-seed sample; (C) rebuild script only, so every setup downloads the chunk.
+- **Decision (owner): option B.** The slice is committed (the data is CC0 per the API metadata, and ~1 MB), so setup needs no download; the rebuild script lets anyone reproduce it exactly. Committing data is a new pattern for the project (Part 1 commits none). Caveat to check in the data discussion: a first-chunk sample reflects the file's order, so its product/date mix needs checking; if skewed, read a bigger chunk or fall back to the full file. Size: a few hundred, as the client asked (500 proposed, exact number open).
+- Other leads, not checked: Hugging Face mirrors (e.g. `CFPB/consumer-finance-complaints`, 2024) and Wayback snapshots at other dates (e.g. 2025-05-31).
 
 ## Team & Roles
 
