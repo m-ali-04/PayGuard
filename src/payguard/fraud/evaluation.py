@@ -7,6 +7,8 @@ import numpy as np
 # Sample figure chosen by the owner, not client-provided: just above the 0.173% fraud rate, so the
 # budget doesn't cap recall on its own. See CONTEXT.md "Evaluation Framework".
 BUDGET = 0.002
+# p99 per transaction, the lenient end of the published 10–50 ms range; see CONTEXT.md "Domain Research".
+LATENCY_LIMIT_MS = 50
 BOOTSTRAP_RESAMPLES = 2000
 BOOTSTRAP_SEED = 0
 
@@ -44,6 +46,13 @@ def at_threshold(y: np.ndarray, scores: np.ndarray, threshold: float) -> dict:
     """Live view: flag every score at or above a cut set in advance, so the alert count can drift."""
     flagged = scores >= threshold
     return {**_outcome(y, flagged), "alert_rate": flagged.mean()}
+
+
+def latency_summary(ms: np.ndarray) -> dict:
+    """Request latencies in milliseconds, summarised against the limit."""
+    p50, p95, p99 = np.percentile(ms, [50, 95, 99])
+    return {"mean": ms.mean(), "p50": p50, "p95": p95, "p99": p99, "max": ms.max(),
+            "over_limit": (ms > LATENCY_LIMIT_MS).mean()}
 
 
 def paired_bootstrap(

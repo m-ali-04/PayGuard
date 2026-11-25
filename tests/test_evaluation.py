@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 from sklearn.metrics import average_precision_score
 
-from payguard.fraud.evaluation import alerts, at_budget, at_threshold, paired_bootstrap, threshold_for_budget
+from payguard.fraud.evaluation import (
+    LATENCY_LIMIT_MS, alerts, at_budget, at_threshold, latency_summary, paired_bootstrap, threshold_for_budget,
+)
 
 
 @pytest.fixture
@@ -50,3 +52,10 @@ def test_bootstrap_is_reproducible_and_favours_the_better_model():
     assert 0 < low < high
     assert paired_bootstrap(y, weak, strong, average_precision_score, n=200) == (low, high)
     assert paired_bootstrap(y, strong, weak, average_precision_score, n=200)[1] < 0
+
+
+def test_latency_summary_counts_requests_over_the_limit():
+    ms = np.arange(1, 101, dtype=float)  # 1..100 ms
+    s = latency_summary(ms)
+    assert (s["mean"], s["p50"], s["max"]) == (50.5, 50.5, 100.0)
+    assert s["over_limit"] == (100 - LATENCY_LIMIT_MS) / 100  # strictly above the limit

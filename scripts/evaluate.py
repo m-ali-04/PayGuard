@@ -21,14 +21,13 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 from get_data import DEST, SHA256, is_valid
 from payguard.fraud.data import FEATURES, LABEL, WINDOWS, load, split
 from payguard.fraud.evaluation import (
-    BOOTSTRAP_RESAMPLES, BOOTSTRAP_SEED, BUDGET, alerts, at_budget, at_threshold, paired_bootstrap,
-    threshold_for_budget,
+    BOOTSTRAP_RESAMPLES, BOOTSTRAP_SEED, BUDGET, LATENCY_LIMIT_MS, alerts, at_budget, at_threshold,
+    paired_bootstrap, threshold_for_budget,
 )
 from payguard.fraud.models import CANDIDATES
 from payguard.fraud.tracking import ROOT, StoreError, latest_run, use_local_store
 
 REPORT = ROOT / "reports" / "decision_report.md"
-LATENCY_LIMIT_MS = 50
 LATENCY_CALLS, WARMUP_CALLS = 2000, 50
 BASELINE = next(iter(CANDIDATES))  # the simpler model every other candidate is compared against
 # Each note reads its size from the fitted classifier, so it can't go stale if settings change.
