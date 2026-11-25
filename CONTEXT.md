@@ -306,6 +306,12 @@ Planned in plan mode, built in three short sessions (S1 store helpers and thresh
 - **Trial narrowed to Granite 4.2 3B and Qwen 3.5 4B (owner).** Gemma 4 e4B dropped: it runs like 4B but downloads and loads like ~8B (6.6 GB against 2.2 and 3.3 GB), which works against choosing a small model so more people can run it.
 - **8–9B comparison removed for now and moved to the README as a possible addition (owner).** The owner's point: the Gemini-labelled gold set already compares the pipeline with a stronger model, though not under controlled conditions. Discussed: only the 8–9B run changes model size alone (same prompt, schema, machine, rows), so dropping it loses the "what does going small cost" number; it also saves a ~5–7 GB download.
 - **Ollama install (owner runs it, since it needs sudo):** the official script `curl -fsSL https://ollama.com/install.sh | sh` failed on this WSL Ubuntu without `zstd`. Fix: `sudo apt-get install zstd`, then rerun. README Setup needs both steps once the triage setup is written.
+- **B3 plan approved (owner).** Sessions: S0 model trial (Granite vs Qwen on 5 dev rows, owner picks, digest pinned), S1 pipeline record + batch runner, S2 evaluation report, S3 write-up, clean-room run and PR. Choices made while planning:
+  - **Run all 500** complaints, not just the 80 labelled: it also gives CFPB agreement, template consistency, and failure, latency and token figures from a realistic batch.
+  - **Summaries: automatic checks plus an owner spot-check of 10.** The automatic checks catch numbers or amounts not in the complaint, more than 2 sentences, and empty summaries; the owner judges 10 test summaries for faithfulness.
+  - **Outputs as CSV** (review reasons `; `-joined), committed so the eval reruns without Ollama.
+  - **No synthetic set (owner, supersedes the earlier "rare flags will be exercised by the synthetic set" and the planned synthetic injection cases).** Prompt injection and the `safety_risk`/`discrimination` flags go into the README as limitations: the injection defences are structural (fenced text, schema-constrained output, `requires_human` in code) but untested against attacks. Briefly chosen first: Gemini writes the cases; dropped before the plan was approved.
+  - Small extras in S1: `table()`/`pct()` move to `src/payguard/reporting.py` for both parts; `pydantic`, already imported by `llm.py` through fastapi, gets declared.
 
 ## Team & Roles
 
