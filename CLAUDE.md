@@ -29,7 +29,7 @@ Use this alongside standard planning practice. It's a guideline, not a replaceme
 ## Reproducibility & Documentation
 - The project must run from a clean environment. Whenever a step adds a dependency, data step or command, update the dependency file and the setup instructions in the same change.
 - Environment: `uv` + `pyproject.toml` + `uv.lock`, Python 3.12.
-- Keep README.md current: setup, approach, results, and what was cut and why (or why something extra was added). Update it when a strategy decision is made, not at the end.
+- Keep README.md (what each system is, setup, how to run it) and REPORT.md (approach, findings, results, limitations, what was cut and why or why something extra was added, and questions for the client) current. Update them when a strategy decision is made, not at the end.
 
 ## AI Usage Tracking
 - Keep `AI_USAGE.md` up to date: which AI tools were used, what for, and roughly what share of the code each produced.
