@@ -1,9 +1,14 @@
 # PayGuard: Project Report
 
-*Outline draft. Each section says what it will cover; sections are written and reviewed one at a time.*
-
 ## 1. Summary
-*Both answers on one screen. Fraud: ready for a shadow-mode rollout (82 of 115 test frauds caught at a threshold fixed in advance; p99 25.6 ms end to end; served scores identical to offline). Triage: 45.6% of complaints routed with no human, 20 of 22 auto-routed test complaints to the right team; a shadow-mode pilot, not a switchover. The production plan in one line, linking to the memo.*
+
+**Fraud detection: ready for a shadow-mode rollout.** A gradient-boosted tree model scores each transaction during authorisation, through a small API. On a held-out 12-hour window of your transactions, with alerts capped at an assumed 0.2% of traffic, it caught 82 of 115 frauds (66% of their value) at a threshold fixed in advance, with 14 false alerts. End to end it answered within 25.6 ms at p99 against a 50 ms limit, and its served scores matched the offline model exactly. Two days of anonymised data limit what this shows: the threshold drifts between night and day, and the largest gains, velocity features and a steady label feed, need card identifiers and chargeback data from you.
+
+**Complaint triage: worth a shadow-mode pilot, not a switchover.** A free local model (Granite 4.2 3B) gives each complaint a category, urgency, summary and confidence note, while code decides which complaints must reach a person. On 500 CFPB complaints it routed 45.6% with no person, with no failed calls. On 50 held-out complaints, 20 of the 22 it routed alone reached the right team, and it sent 23 of the 27 that need a person to one (25 of 27 with a legal-words rule added after seeing the misses). At 50,000 complaints a month, a small hosted model would cost about $10–37. Its weak points: it misses legal threats, never rates urgency low, and follows instructions hidden in complaint text, so an injection defence has to come before any complaint skips a person.
+
+**Production.** The [memo](docs/memo.md) to your CTO sets out the fraud service's production design: an in-country AWS deployment with streaming velocity features, monitoring for failures that raise no errors, and a four-phase rollout from shadow mode to automation, moving on gates set with your team.
+
+**What we need from you.** Every answer we didn't have became a stated assumption. Section 6 lists each one, with what changes when you answer it.
 
 ## 2. Reading guide
 *Written last, once section numbers are final. A table mapping each criterion (judgment, evaluation rigour, code quality, communication, results) to the sections that show it, plus where the generated reports, the decision log (CONTEXT.md) and AI usage (AI_USAGE.md) live.*
