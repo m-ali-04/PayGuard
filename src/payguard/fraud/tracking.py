@@ -5,6 +5,8 @@ from pathlib import Path
 import mlflow
 import pandas as pd
 
+# The repo root, because the package runs from its source tree (uv's default editable install).
+# A packaged deployment would point this at its own store instead.
 ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT = "fraud-shortlist"
 

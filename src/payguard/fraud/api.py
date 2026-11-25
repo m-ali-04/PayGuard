@@ -53,9 +53,11 @@ _fields = {f: (float, Field(description="Anonymised PCA component from the clien
 _fields["Amount"] = (float, Field(ge=0, description="Transaction amount."))
 Transaction = create_model(
     "Transaction",
-    # Unknown fields are dropped, as the model pipeline does; NaN/Infinity are refused because the
-    # contract has no missing values.
-    __config__=ConfigDict(extra="ignore", allow_inf_nan=False, json_schema_extra={"examples": [EXAMPLE]}),
+    # Unknown fields are dropped, as the model pipeline does. Strict: whole numbers are accepted, but
+    # true or "25" are refused rather than quietly read as 1.0 or 25.0. NaN/Infinity are refused
+    # because the contract has no missing values.
+    __config__=ConfigDict(extra="ignore", strict=True, allow_inf_nan=False,
+                          json_schema_extra={"examples": [EXAMPLE]}),
     **_fields,
 )
 
