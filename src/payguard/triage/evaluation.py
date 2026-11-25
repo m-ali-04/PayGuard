@@ -1,7 +1,7 @@
 """Scoring helpers for the triage evaluation: the gold policy and the automatic summary checks."""
 import re
 
-from payguard.triage.policy import Assessment, review_reasons
+from payguard.triage.policy import LEGAL_REASON, Assessment, review_reasons
 from payguard.triage.taxonomy import Category, Flag, Urgency
 
 # "$1,500.00", "1500", "180", "3.5": commas and trailing zero decimals are dropped before comparing.
@@ -13,9 +13,14 @@ MAX_SENTENCES = 2
 
 
 def gold_reasons(narrative: str, tags: str, gold: dict[str, str]) -> list[str]:
-    """The review policy applied to the gold labels, so gold and model are judged by the same rule."""
+    """The review policy applied to the gold labels, so gold and model are judged by the same rule.
+
+    The legal-words backstop is left out: gold should reflect what the labeller decided (and the tags),
+    or the keyword rule would score its own matches as correct.
+    """
     flags = frozenset(flag for flag in Flag if gold[flag] == "y")
-    return review_reasons(narrative, tags, Assessment(Category(gold["category"]), Urgency(gold["urgency"]), flags))
+    reasons = review_reasons(narrative, tags, Assessment(Category(gold["category"]), Urgency(gold["urgency"]), flags))
+    return [reason for reason in reasons if reason != LEGAL_REASON]
 
 
 def _numbers(text: str) -> set[float]:

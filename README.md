@@ -173,7 +173,7 @@ Full numbers: [decision report](reports/fraud/decision_report.md) (regenerate wi
 
 ## Problem 2: Complaint Triage
 
-Goal: a batch pipeline that turns a raw complaint narrative into a structured triage record (category, urgency, summary, requires_human, confidence_note), with an evaluation of how good the triage is. **Result in one line:** on 500 complaints, a free local 3B model routed 45.6% with no human, with no failed calls, while the safety rules in code sent 25 of the 27 test complaints that need a human to one (see Results).
+Goal: a batch pipeline that turns a raw complaint narrative into a structured triage record (category, urgency, summary, requires_human, confidence_note), with an evaluation of how good the triage is. **Result in one line:** on 500 complaints, a free local 3B model routed 45.6% with no human, with no failed calls, while sending 23 of the 27 test complaints that need a human to one, or 25 of 27 with a legal-words rule added after seeing those misses (see Results).
 
 ### Data
 
@@ -239,18 +239,18 @@ From `reports/triage/evaluation_report.md`: `granite4.2:3b` (digest `40577dc168a
 | **Routed with no human** | **228 of 500 (45.6%)** |
 | Sent to a human | 272 (54.4%) |
 | Failed calls, re-asks, narratives too short | 0, 0, 0 |
-| **Test set (50): complaints needing a human that got one** | **25 of 27 (92.6%)**, precision 89.3% |
+| **Test set (50): complaints needing a human that got one** | **23 of 27 (85.2%)** from the model and its flags; **25 of 27 (92.6%)** with the legal-words rule, which was added after seeing these misses, so the 92.6% is optimistic. Precision 89.3% |
 | Test set: category / urgency accuracy | 76% / 74% |
 | Sensitive cases routed without a human (80 labelled) | 2: a bank withholding $3,300 rated medium instead of high; a vague complaint the labels mark `other` (the label notes call it borderline) |
-| Summaries | 10 of 10 judged faithful in the owner's spot-check; 1 of 500 flagged for a number not in the complaint, a false alarm ("thirty days" written as 30) |
+| Summaries | 10 of 10 judged faithful in the owner's spot-check; 117 of 500 (23%) still run past 2 sentences, though under 50 words; 1 of 500 flagged for a number not in the complaint, a false alarm ("thirty days" written as 30) |
 | Latency per complaint | 2.96 s mean, 3.42 s p95 |
 | At 50,000 complaints a month | 41 compute-hours for one worker on this machine; the same tokens on Claude Haiku 5.5 would cost about $10 a month |
 
 - **The workload cut is in triage, not handling.** Today every complaint is read and routed by hand; with the pipeline 45.6% skip that step, and the 54.4% that reach a human arrive routed, summarised and with the reasons they were flagged. Of those, 42 (8.4% of all) go only because of a CFPB tag, 5 only for the vulnerable-customer flag, and 28 only for legal words.
 - **Where it goes wrong:**
-  - `legal_threat` is never caught by the model (0 of 4 in test); the legal-words rule covers it.
+  - The model caught `legal_threat` on none of the 5 labelled legal threats (it raised the flag 13 times across the 500); the legal-words rule covers it.
   - It leans toward fraud: `fraud_allegation` is the most common review reason (131), with 5 false alarms in test, and 4 test banking complaints routed to `fraud_scams`. That direction is safe for review but sends some complaints to the wrong team, and it is why agreement with CFPB's own fields is only 45.8% (the gold labels reach 61%).
-  - It never rates urgency "low": all 7 low-urgency test complaints were rated medium.
+  - It never rates urgency "low": of the 7 low-urgency test complaints, 6 were rated medium and 1 high.
 - **Is the model the limit?** It's the largest single one: the flag and urgency gaps above are capability gaps of a 3B model following a long rubric, and a larger or hosted model would very likely close many of them (the larger-model comparison is a possible addition). Label noise, CFPB's redaction and taxonomy edge cases cap the scores too. The safety rules are in code and don't depend on the model.
 - **Owner's spot-check notes.** Some complaints need more than 2 sentences to keep the important details (23150610), so the 2-sentence check is a guide, not a rule. One faithful summary lost the "why" (23051429: the lawsuit had proved the consumer right, which is why they wanted the charges removed).
 - **Recommendation for the client:** enough to justify a **shadow-mode pilot**, not a switchover. Run the pipeline on live complaints while staff keep handling everything as today, measure how often they would override its routing, then start automating the lowest-risk categories, keeping every `requires_human` reason in force.
@@ -266,5 +266,6 @@ From `reports/triage/evaluation_report.md`: `granite4.2:3b` (digest `40577dc168a
 - **Few sensitive cases to score flags on.** The 50 test rows hold no `safety_risk` or `discrimination` cases and only 4–5 each for the other flags, so one miss moves recall by 20–25 points. Flag results should be read as counts (e.g. "4 of 5 caught"); the two empty flags aren't measured (enriched real sampling is listed as a possible addition).
 - **Prompt injection isn't tested.** The real slice contains none, and no synthetic attacks were built (owner's decision, for the time budget). The defences are structural: complaint text is fenced and can't close its tag, the output is schema-constrained, and `requires_human` is decided in code, so text can't switch it off. They haven't been tested against attacks.
 - **The same complaint can get a different answer,** despite temperature 0 and a fixed seed: one complaint was rated high in one run and medium in the next, and within the 500-complaint run one template that appears 12 times got the legal flag on some copies and not others. 6 of the 7 repeated narratives were judged identically.
+- **The legal-words list is minimal.** It matches all 5 labelled legal threats but misses words such as "summons", "suit", "counsel" and "judgment", and it also matches "attorney general" (a regulator, 6 of its 63 matches), which errs toward review. Widening it would change the stored review reasons, so it needs a rerun or re-scoring of the outputs; left for a production version.
 - **The client's mix differs from the slice.** About 90% of CFPB's complaints are credit reporting, but few of those have a published narrative, so the slice is 5% credit reporting. On the client's own intake the automation rate could differ from 45.6%.
 - **Redacted public data.** CFPB's redaction hides names, dates and deadlines; the client's complaints would arrive unredacted, which would help urgency and raises a data-handling question if a hosted model were used.
