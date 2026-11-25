@@ -262,7 +262,50 @@ After those: how many complaints skip manual triage, how often those reach the r
 | **No prompt injections in the real data.** All 5 keyword hits were ordinary uses of "disregard". | Attacks had to be built: 10 real complaints with attack text added (section 4.4). |
 
 ### 4.3 Triage design
-*Taxonomy and rule order; harm-led urgency; the five flags; `requires_human` as a policy in code; the legal-words backstop (added after the results); model choice (Granite against Qwen and Gemma); robustness (schema, re-ask, retries, failure goes to a human); fenced complaint text.*
+
+The design keeps the model to judgements a schema can constrain, and puts the safety rule in code.
+
+**One vocabulary, one set of definitions.** The categories, urgency levels and flags, with their definitions, live in one file ([`taxonomy.py`](src/payguard/triage/taxonomy.py)). The labelling guide is generated from it and the model's prompt uses the same text, so the reference labels and the model's answers are judged against identical wording.
+
+**Seven routing categories, applied in order.** Fraud or unauthorised activity goes to `fraud_scams` on any product. Otherwise, credit-report content goes to `credit_reporting`, from any company. Otherwise the product decides: `debt_collection`, `banking_payments`, `credit_cards` or `lending`. `other` is only for text that's unclear or fits none. Categories are defined by where the complaint's text says it should be handled, not by CFPB's product field, which follows the company (section 4.2). The output schema allows only these values, so the model can't invent a category.
+
+**Urgency is led by harm.** The kind of harm and its state set the level: high for ongoing or imminent loss of money, funds, home or car, or any safety risk; medium for real but not imminent harm; low for service or information problems, or resolved ones. Time cues in the text can raise urgency, but missing or redacted time never lowers it, since 69% of the slice has no usable time cue. When a redacted date could matter, the model says so in its confidence note. On your unredacted complaints, time would carry more weight.
+
+**Five flags, each with a boundary:**
+- `fraud_allegation`: a dispute over a debt's amount isn't fraud;
+- `legal_threat`: citing a law isn't a threat;
+- `vulnerable_customer`: judged from the text only;
+- `safety_risk`: a rude collector isn't a safety risk;
+- `discrimination`: needs a protected characteristic.
+
+There's no tone flag, and no regulator flag, since every complaint here was filed with a regulator.
+
+**`requires_human` is a policy in code, not a prompt instruction** ([`policy.py`](src/payguard/triage/policy.py)). The model returns flags and urgency; code decides who sees a person, so complaint text can't change the rule itself. The policy collects every reason that applies, so no check can hide another:
+- any CFPB tag (Older American, Servicemember);
+- an unusable narrative (under 5 words, our assumption; these skip the model);
+- a failed model call;
+- category `other`;
+- high urgency;
+- any flag;
+- legal words in the text, whatever the model says.
+
+The reasons go into the output so reviewers see why. The policy never changes urgency, so a tagged complaint about a minor issue is reviewed at low priority but never auto-closed. The tag rule alone sends 42 of the 500 complaints (8.4%) to a person with nothing else flagged; we accepted that cost for protected groups. Text can still mislead the model whose flags and urgency the policy reads: only the tag, legal-words and unusable-narrative rules don't depend on the model (section 4.5).
+
+**The legal-words rule was added after we saw the test results.** On the 80 labelled complaints the model caught `legal_threat` 0 times out of 5, missing court papers and an explicit lawsuit threat, and the brief says legal threats must never be auto-closed. A stronger prompt was unlikely to fix a 3B model that missed all five, so a keyword rule (attorney, lawyer, lawsuit, sue, court, small claims, litigation, legal action) sends legal language to a person. It closed both legal misses, and sends 28 of the 500 to a person on legal words alone. The model's own flag stays a separate reason, so the results still show what the model caught by itself, and figures that include the rule are marked as optimistic.
+
+**The model: Granite 4.2 3B, run locally through Ollama** (`granite4.2:3b`, digest `40577dc168a3`, recorded in every output row). We first chose a paid hosted API, then switched to a free route. Against a free hosted tier (tight rate caps that change, complaints sent to the provider, and a key needed by anyone reproducing the run), a local model won: free, no rate limits, complaints never leave the machine, and output constrained to the schema as it's generated. A small model widens who can run the pipeline: 8 GB of memory is enough. The pipeline reaches the model through one small module ([`llm.py`](src/payguard/triage/llm.py)), so a hosted model is a one-module swap.
+- **Chosen over Qwen 3.5 4B on the first 20 dev complaints.** Granite got every category right, sent exactly the 7 complaints the labels need to a person and raised no false flags, but half its summaries ran past 2 sentences. Qwen wrote the best summaries but raised 10 false flags (7 times treating a cited law as a legal threat) and sent 15 of 20 to a person, which works against taking load off the team. Granite's weakness was cosmetic and caught by the summary check; Qwen's hit the goal. Twenty complaints is a small trial.
+- **Gemma 4 e4B was dropped before the trial:** it runs like a 4B model but downloads and loads like an 8B one (6.6 GB).
+- **Summaries are kept under 50 words.** Granite padded them with the consumer's history of contacts with the company. A tighter instruction, decided on the dev results before any test result, cut the dev summaries from 51 to 33 words on average without changing the decisions.
+
+**The model is treated as unreliable:**
+- its output is constrained to the schema while it's generated, then validated again in code, with sampling pinned (temperature 0, fixed seed);
+- a truncated or invalid answer gets one re-ask with a new seed, and connection errors get retries with backoff;
+- anything still failing goes to a person, with the error recorded;
+- if the model server is lost, the batch stops and writes nothing, so an output file is never partial;
+- complaint text is fenced in tags it can't close, and the prompt says it's data, not instructions. The injection test shows the 3B model often follows embedded instructions anyway (section 4.5).
+
+**Runner and outputs** ([`run_triage.py`](scripts/triage/run_triage.py)). Every complaint takes one path: narratives under 5 words skip the model, and the review policy always runs. A live terminal panel shows each decision and, for labelled complaints, how it compares with the reference. The CSV output has fixed columns: the judgement, every review reason, attempts, errors, tokens, latency and the model digest. `--limit N` runs a trial on the first N labelled complaints without touching the committed outputs.
 
 ### 4.4 Evaluation approach
 *The gold set (80 complaints labelled by Gemini, dev and test, provenance); what "correct" means for each field; metrics and Wilson ranges; tagged and untagged recall; CFPB as a weak reference; consistency on duplicates; summary checks and the spot-check; the `confidence_note` check; the prompt-injection test, with pass rules fixed before the run.*
