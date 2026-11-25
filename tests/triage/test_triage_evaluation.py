@@ -28,3 +28,8 @@ def test_gold_uses_the_same_policy_as_the_model():
                               Assessment(Category.LENDING, Urgency.HIGH, frozenset({Flag.LEGAL_THREAT})))
     assert gold_reasons(NARRATIVE, "Servicemember", gold) == expected
     assert expected == ["tag: Servicemember", "high urgency", "flag: legal_threat"]
+
+
+def test_gold_ignores_the_legal_words_backstop():
+    gold = {"category": "lending", "urgency": "medium"} | {flag: "n" for flag in Flag}
+    assert gold_reasons("I reported this to the state attorney general last week.", "", gold) == []
