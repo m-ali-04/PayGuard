@@ -85,7 +85,59 @@ Counts are reported per test window, not scaled to a day: the window is the dayt
 **Replay and parity check.** [`scripts/fraud/replay.py`](scripts/fraud/replay.py) sends a slice of the test window to the API in time order. Each transaction goes out on its own schedule without waiting for earlier answers, as real traffic does. Timestamps are whole seconds, so each second's transactions are spread evenly across it; sending them as one burst would be an artefact of the timestamp resolution. The demo slice is the 40 minutes with the most frauds (42:40–43:20, 5,351 transactions, 17 frauds), replayed at 4 times real time (about 10 minutes) with a live terminal panel. At that pace even the busiest second's transactions arrive about 23 ms apart, above the ~10 ms a request takes, so requests don't overlap: the replay measures latency at a realistic pace, not capacity. Afterwards it loads the same MLflow run offline, compares every served score with the offline score, and writes the [replay report](reports/fraud/replay_report.md). A fraud-dense slice runs above average, so the report shows the whole test window's figures beside it.
 
 ### 3.5 Results
-*Results table; why gradient-boosted trees were chosen; how certain the gain is; the operating-point recommendation (threshold, recalibration, the daytime finding); cost of errors: what a false alert and a missed fraud cost, and the value of fraud caught; replay results; optional threshold chart.*
+
+Full figures are in the [decision report](reports/fraud/decision_report.md) and the [replay report](reports/fraud/replay_report.md), which the README's commands regenerate. Test window 36–48 h: 92,576 transactions, 115 frauds; the 0.2% budget allows 185 alerts. Figures marked † were computed once, on the same runs, to answer follow-up questions; they aren't in the generated reports.
+
+| | Logistic regression | Gradient-boosted trees |
+|---|---|---|
+| Average precision | 0.677 | **0.732** |
+| Frauds caught at the budget (185 alerts) | 88 | **90** |
+| Threshold fixed on validation, applied to test: alerts / caught | 82 / 68 | 96 / **82** |
+| …precision / recall at that threshold | 82.9% / 59.1% | 85.4% / **71.3%** |
+| ROC-AUC (reference only) | 0.937 | 0.973 |
+| p99 latency, model only (limit 50 ms) | 6.7 ms | 14.2 ms |
+| Saved model size | 146 KB | 1,057 KB |
+
+**We chose the gradient-boosted trees.** They rank better and, with the threshold fixed in advance as it would be live, catch 14 more frauds (82 against 68). Their threshold is also more stable. Logistic regression's scores bunch near 1.0 (its cut is 0.999981), so moving its cut from 0.999 to 0.9999 shifts 26 alerts and 8 frauds†; the trees' scores are spread out, so their cut is stable and readable. The selection rule's default pointed the same way. The costs are acceptable: the larger file isn't a constraint, and the trees' latency sits well inside the limit.
+
+**How certain the gain is.** The bootstrap ranges for the difference include zero: average precision +0.055 [−0.016, +0.121], frauds caught at the budget +2 [−3, +7]. With 115 test frauds, the two models can't be separated with confidence on those measures, so the choice also rests on how they behave with a fixed threshold.
+
+**Checking more transactions buys little.** Frauds caught out of 115, by share of transactions checked†:
+
+| Share checked | Gradient-boosted trees | Logistic regression |
+|---|---|---|
+| 0.1% | 80 | 70 |
+| 0.2% (our budget) | 90 | 88 |
+| 0.3% | 91 | 93 |
+| 1% | 94 | 95 |
+| 5% | 98 | 101 |
+
+Going from 0.3% to 5% buys 5–8 frauds for about 4,300 more genuine checks†. The last ~20% of frauds look genuine to both models: catching 90% would mean checking 11% of transactions with the trees, or 28% with logistic regression†. Catching them needs new information, such as card history. Above 0.2% the two models swap places, within noise.
+
+**The night-set threshold is too strict by day.** Live, the fixed threshold flags 0.104% of daytime transactions, about half the budget (96 alerts against 185). Scores run lower by day for genuine and fraud transactions alike: the threshold flags 0.040% of genuine transactions at night but 0.015% by day†, and catches 79% of frauds at night against 71% by day. Spending the full budget on the same window would catch 90, so the drift costs about 8 frauds. The trees hold up better than logistic regression here (71% against 59% by day).
+
+**Cost of errors.** We weren't given a cost ratio, and there's no industry standard: published estimates vary widely, and industry write-ups often find that false declines cost issuers more than the fraud itself, through churn and lower spending. A false alert costs analyst time and customer friction, plus the sale if it leads to a decline; a missed fraud costs the transaction value and chargeback fees. At the fixed threshold in the test window†:
+- **Value caught: 10,791 of 16,413 (65.7%),** below the 71.3% caught by count, because missed frauds are larger (median 12.31 against 2.95 for caught ones).
+- **The 14 false alerts carry 25,704 of genuine spending,** more than the fraud value caught. Declining every alert outright would put more genuine spending at risk than it saves, so until the cost ratio is known, alerts suit review or a step-up check better than a decline.
+
+Amounts are in the data's own currency, which it doesn't name. Without a ratio, we weighed errors only through the alert budget, treating a missed fraud as worse than a checked genuine transaction. A ratio from you (section 6) would let the threshold be set on cost.
+
+**Where we recommend operating:**
+- **Set the budget to what your team can review.** Our 0.2% is a placeholder (section 6). Beyond about 0.3%, extra alerts land mostly on genuine customers.
+- **Recalibrate the threshold on live traffic covering whole days,** and watch the hourly alert rate against the budget. If the day/night pattern holds over weeks, the cheapest fix is separate thresholds for busy and quiet hours, then a time-of-day feature (section 3.8).
+- **Split alerts into two bands once the cost of errors is known:** a top band precise enough for an automatic step-up or decline, and a review band for analysts. In this window, 85% of the fixed threshold's alerts were fraud. The memo phases this in (phase 2).
+
+**Replay through the API** (the demo slice, 42:40–43:20 at 4 times real time):
+
+| | Replay (API) | Offline, same slice | Offline, whole test window |
+|---|---|---|---|
+| Caught / false alerts / missed | 14 / 1 / 3 | 14 / 1 / 3 | 82 / 14 / 33 |
+| Recall | 82.4% | 82.4% | 71.3% |
+
+- **Parity holds on real traffic:** all 5,351 served scores equal the offline scores bit for bit, and no alert decision differs. Serving adds no skew.
+- **End-to-end latency is inside the limit:** p50 12.2 ms, p99 25.6 ms against 50 ms; 1 request in 5,351 went over (max 76.7 ms). That's from request sent to answer received, with client and API on one machine (WSL2, 22 logical cores). The HTTP round trip, request validation and building the input row add about 6–12 ms over the model alone.
+- **Latency depends on the machine.** A rerun from a clean clone gave identical decisions and exact parity but a p99 of 122 ms; another build was running on the machine at the time, the likely cause, though no rerun confirmed it. On battery power, requests took about 100 ms at the median. The figures above come from a quiet machine on mains power.
+- **The slice runs above average** (82% recall against 71%), because it was chosen as the most fraud-dense 40 minutes.
 
 ### 3.6 Real-time inference
 *Features must exist at authorisation time (why `Time` is dropped); velocity features need streaming state, the biggest production lever; label delay sets the retraining cadence; the upstream PCA step as a skew risk; the OpenMP finding and single-thread workers.*
