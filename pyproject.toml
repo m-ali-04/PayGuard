@@ -27,5 +27,5 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Lets tests reuse the hash-checked data path from scripts/get_data.py.
-pythonpath = ["scripts"]
+# Lets tests reuse the hash-checked data path from scripts/fraud/get_data.py.
+pythonpath = ["scripts/fraud", "scripts/triage"]

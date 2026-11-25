@@ -16,32 +16,32 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
    ```
 3. **Get the data.** The script asks which source to use, or you can pass `--source`:
    ```bash
-   uv run scripts/get_data.py                  # asks: kaggle / manual
-   uv run scripts/get_data.py --source kaggle  # Kaggle CLI via uvx; no install or account needed
+   uv run scripts/fraud/get_data.py                  # asks: kaggle / manual
+   uv run scripts/fraud/get_data.py --source kaggle  # Kaggle CLI via uvx; no install or account needed
    ```
    For a manual download, get it from https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud, place `creditcard.csv` at `data/raw/creditcard.csv` and re-run the script to verify it.
    Both routes are checked against the same SHA-256: `76274b691b16a6c49d3f159c883398e03ccd6d1ee12d9d8ee38f4b4b98551a89`.
 4. **(Optional) Regenerate the data report.** The analysis tools sit in a separate `analysis` dependency group, so the serving runtime doesn't install them:
    ```bash
-   uv run --group analysis scripts/data_understanding.py   # writes reports/data_understanding.md + figures
+   uv run --group analysis scripts/fraud/data_understanding.py   # writes reports/fraud/data_understanding.md + figures
    ```
 5. **Train the shortlisted fraud models.** This fits each candidate on the training window and logs it to a local MLflow store (`mlflow.db`, `mlruns/`, both gitignored):
    ```bash
-   uv run scripts/train.py
+   uv run scripts/fraud/train.py
    uv run mlflow ui --backend-store-uri sqlite:///mlflow.db   # from the repo root; browse at http://127.0.0.1:5000
    ```
-6. **Write the decision report.** This scores the latest run of each model on the validation and test windows, writes `reports/decision_report.md` and logs the headline metrics to each model's MLflow run (about 3 minutes, mostly the bootstrap):
+6. **Write the decision report.** This scores the latest run of each model on the validation and test windows, writes `reports/fraud/decision_report.md` and logs the headline metrics to each model's MLflow run (about 3 minutes, mostly the bootstrap):
    ```bash
-   uv run scripts/evaluate.py
+   uv run scripts/fraud/evaluate.py
    ```
 7. **Serve the selected model.** The API loads the selected model's latest run and the threshold that step 6 logged on that same run (it refuses to start if that run hasn't been evaluated):
    ```bash
    uv run uvicorn payguard.fraud.api:app   # from the repo root; interactive docs at http://127.0.0.1:8000/docs
    ```
-8. **Replay the client's traffic through the API** (in a second terminal, with the API running). The default replays the demo slice, 42:40–43:20 at 4× (~10 minutes), with a live panel, then checks parity against the offline model and writes `reports/replay_report.md`. Run nothing heavy on the machine meanwhile: the replay, API and model share it, so other work shows up as latency.
+8. **Replay the client's traffic through the API** (in a second terminal, with the API running). The default replays the demo slice, 42:40–43:20 at 4× (~10 minutes), with a live panel, then checks parity against the offline model and writes `reports/fraud/replay_report.md`. Run nothing heavy on the machine meanwhile: the replay, API and model share it, so other work shows up as latency.
    ```bash
-   uv run scripts/replay.py
-   uv run scripts/replay.py --start 39:31 --length 20   # another slice, same pace (keep the speed low enough that requests don't overlap)
+   uv run scripts/fraud/replay.py
+   uv run scripts/fraud/replay.py --start 39:31 --length 20   # another slice, same pace (keep the speed low enough that requests don't overlap)
    ```
    Score one transaction (the 28 components and Amount; other fields are ignored):
    ```bash
@@ -49,7 +49,7 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
      -d "{$(for i in $(seq 1 28); do printf '"V%d": 0, ' $i; done)\"Amount\": 25}"
    # {"fraud_score":…,"alert":false,"threshold":0.357…,"model_run_id":"…"}
    ```
-8. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
+9. **Run the tests.** The data tests are skipped if the dataset hasn't been downloaded:
    ```bash
    uv run pytest
    ```
@@ -76,13 +76,13 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Real-time simulation: replay to a scoring API.** A script sends the client's transactions in time order to a local scoring service, and we measure latency per request.
 - **Replay demo: the 40 minutes with the most frauds (42:40–43:20, 17 frauds) at 4× real time (~10 minutes), with a live terminal panel.** The client's traffic averages one transaction every ~450 ms there, so at 4× even the busiest second's transactions arrive ~23 ms apart, above the ~10 ms a request takes: requests don't overlap, because load testing is out of scope. Requests go out on schedule without waiting for earlier answers, as real traffic does. Timestamps are whole seconds, so each second's transactions are spread evenly across it rather than sent as one burst, which would be an artefact of the timestamp resolution. A fraud-dense slice runs above average, so the report shows the whole-window figures beside it.
 - **Parity check on real data:** after each replay, the served scores are compared with the same MLflow run's model loaded offline (expected: identical scores and decisions).
-- **Data understanding** ([report](reports/data_understanding.md)): about 211 frauds on day 2, so small model differences are noise. Several features drift between the two days, which supports a time split. Seven features separate fraud strongly on their own, so a simple baseline is credible. There are 1,081 exact duplicates, all within the same second. Analysis is look-only; no data is changed.
+- **Data understanding** ([report](reports/fraud/data_understanding.md)): about 211 frauds on day 2, so small model differences are noise. Several features drift between the two days, which supports a time split. Seven features separate fraud strongly on their own, so a simple baseline is credible. There are 1,081 exact duplicates, all within the same second. Analysis is look-only; no data is changed.
 - **Shortlist: logistic regression (interpretable baseline) and gradient-boosted trees** (scikit-learn's `HistGradientBoostingClassifier`), both with default settings except two stability settings on the boosted trees. Early stopping is off, because it holds out a random sample of training rows and would shuffle time. `l2_regularization=1.0` (XGBoost's default for the same term), because with sklearn's default of 0 its training diverged on this data: scores stuck at exactly 1.0, so it couldn't rank its top alerts. Twelve model families were considered. Random forest usually trails boosted trees; k-NN, kernel SVM and neural networks fit poorly here (latency, training cost, tuning); sequence and graph models need card history the data doesn't have.
 - **Class imbalance:** no resampling. Logistic regression weights the rare fraud class up (`class_weight="balanced"`); the trees use defaults.
 - **Features: the 28 anonymised components and Amount (log-transformed).** `Time` counts seconds since the file started, so it can't be computed live, and it's dropped.
 - **Preprocessing lives inside each model's saved pipeline**, so the API loads one artifact that carries its own transforms. The pipeline picks its input fields by name, so a raw transaction scores the same in any field order or with extra fields; tests check this, and that a saved and reloaded model gives identical scores.
 - **Models are logged with MLflow** in its default safe format (skops), with the pinned dependency versions and the model's contract recorded beside it: the 29 model fields in (no `Time`, which can't be computed live), fraud probabilities out. Code lives in `src/payguard/fraud/` (`data.py` for the windows, `models.py` for the pipelines), shared by training, tests and the API.
-- **Scoring API (FastAPI):** `POST /v1/score` takes one transaction and returns the fraud score, the alert decision, the threshold and the MLflow run that scored it; `GET /v1/health` shows the model being served. It serves the selected model (`SELECTED` in `models.py`) from its latest MLflow run, with the threshold `scripts/evaluate.py` logs on that same run, so a model is never paired with another model's cut. Requests are validated against the 29 model fields (built from the same field list as the model; NaN, Infinity and negative amounts are refused with a 422 naming the field), and paths are versioned so the contract can change without breaking callers.
+- **Scoring API (FastAPI):** `POST /v1/score` takes one transaction and returns the fraud score, the alert decision, the threshold and the MLflow run that scored it; `GET /v1/health` shows the model being served. It serves the selected model (`SELECTED` in `models.py`) from its latest MLflow run, with the threshold `scripts/fraud/evaluate.py` logs on that same run, so a model is never paired with another model's cut. Requests are validated against the 29 model fields (built from the same field list as the model; NaN, Infinity and negative amounts are refused with a 422 naming the field), and paths are versioned so the contract can change without breaking callers.
 - **No training-serving skew by design:** training and serving share one preprocessing code path, and a parity test checks the API's scores against the offline scores.
 
 ### Evaluation
@@ -98,7 +98,7 @@ This is a single-developer project with AI assistance (see [AI_USAGE.md](AI_USAG
 - **Live operating point:** a fixed score threshold set on validation data to flag 0.2% of transactions there. A daily top-k ranking isn't possible when scoring one transaction at a time.
 
 ### Results
-Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv run scripts/evaluate.py`). Test window 36–48h, 115 frauds, budget 0.2% = 185 alerts.
+Full numbers: [decision report](reports/fraud/decision_report.md) (regenerate with `uv run scripts/fraud/evaluate.py`). Test window 36–48h, 115 frauds, budget 0.2% = 185 alerts.
 
 | | Logistic regression | Gradient-boosted trees (HGB) |
 |---|---|---|
@@ -113,7 +113,7 @@ Full numbers: [decision report](reports/decision_report.md) (regenerate with `uv
 - **Budget beyond 0.2% buys little:** checking 0.3% of transactions catches about 92 of 115, and 5% only about 100. The last ~20% of frauds look genuine to both models, and catching them would take new information such as card history.
 - **The night-set threshold is too strict by day:** live, both models flag about half the 0.2% budget on the test window. Both genuine and fraud scores run lower by day, so a single fixed threshold misses daytime fraud. See Limitations.
 
-**Replay through the API** ([replay report](reports/replay_report.md), regenerate with `uv run scripts/replay.py`): the demo slice, 42:40–43:20 at 4× real time, 5,351 transactions and 17 frauds.
+**Replay through the API** ([replay report](reports/fraud/replay_report.md), regenerate with `uv run scripts/fraud/replay.py`): the demo slice, 42:40–43:20 at 4× real time, 5,351 transactions and 17 frauds.
 
 | | Replay (API) | Offline, same slice | Offline, whole test window |
 |---|---|---|---|

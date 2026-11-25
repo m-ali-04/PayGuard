@@ -1,6 +1,6 @@
 """Fetch the transactions dataset into data/raw/ and verify its SHA-256.
 
-Usage: uv run scripts/get_data.py [--source kaggle|manual]
+Usage: uv run scripts/fraud/get_data.py [--source kaggle|manual]
 With no --source, asks which one to use. Skips everything if a valid file is already present.
 """
 import argparse
@@ -10,7 +10,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-DEST = Path(__file__).resolve().parents[1] / "data" / "raw" / "creditcard.csv"
+DEST = Path(__file__).resolve().parents[2] / "data" / "raw" / "creditcard.csv"
 SHA256 = "76274b691b16a6c49d3f159c883398e03ccd6d1ee12d9d8ee38f4b4b98551a89"
 KAGGLE_DATASET = "mlg-ulb/creditcardfraud"
 KAGGLE_URL = f"https://www.kaggle.com/datasets/{KAGGLE_DATASET}"

@@ -40,5 +40,5 @@ def latest_run(name: str) -> pd.Series:
         max_results=1,
     )
     if runs.empty:
-        raise StoreError(f"No finished '{name}' run in experiment '{EXPERIMENT}'. Run: uv run scripts/train.py")
+        raise StoreError(f"No finished '{name}' run in experiment '{EXPERIMENT}'. Run: uv run scripts/fraud/train.py")
     return runs.iloc[0]

@@ -35,7 +35,7 @@ def test_scores_need_only_the_model_fields(fitted, raw):
 
 
 def test_saved_model_scores_identically(fitted, raw, tmp_path):
-    """Saves the way scripts/train.py does, then scores live-shaped rows (no Time, no label)
+    """Saves the way scripts/fraud/train.py does, then scores live-shaped rows (no Time, no label)
     through both loaders: the sklearn one and MLflow's generic one used by serving tools."""
     live = raw[FEATURES]
     path = str(tmp_path / "model")
@@ -45,7 +45,7 @@ def test_saved_model_scores_identically(fitted, raw, tmp_path):
     np.testing.assert_array_equal(np.asarray(mlflow.pyfunc.load_model(path).predict(live))[:, 1], expected)
 
 
-@pytest.mark.skipif(not DEST.is_file(), reason="dataset missing: run scripts/get_data.py")
+@pytest.mark.skipif(not DEST.is_file(), reason="dataset missing: run scripts/fraud/get_data.py")
 def test_hgb_training_does_not_saturate_on_client_data():
     """With sklearn's default l2_regularization=0, training diverged on the client's training window
     and hundreds of scores hit exactly 1.0, so the top alerts couldn't be ranked. Synthetic data
