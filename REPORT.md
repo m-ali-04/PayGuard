@@ -395,7 +395,23 @@ Batch APIs from Anthropic, OpenAI and Google halve their prices if triage can wa
 | **Cost and latency are rough.** | The token counts are Granite's, and every vendor's tokenizer counts differently. The GPU time was measured on a laptop GPU, not the rented one priced. | A run on the chosen hosted model or GPU. |
 
 ### 4.7 Measuring at scale, and recommendation
-*What we would measure in production, and the shadow-mode pilot.*
+
+**We recommend a shadow-mode pilot, not a switchover.** The results show the pipeline can take a large share of manual triage, but they rest on 50 test complaints, a model-made reference and a small model that obeys instructions hidden in complaints. A pilot on your own complaints settles what this evaluation can't:
+1. **Shadow.** The pipeline triages live complaints while your team handles everything as today. Record where staff would override its routing, and audit a sample of the complaints it would have routed alone for any that needed a person.
+2. **Before any complaint is routed without a person:** add one of the injection mitigations and a wider attack suite (section 4.8); decide between a hosted and a local model, given that your complaints carry personal data (section 6); and, if the pilot shows the small model's gaps matter, run the larger-model comparison.
+3. **Automate gradually.** Start with the categories where staff overrides are rarest, keep every `requires_human` reason in force, and widen only while override and audit rates stay within targets you set. As with the fraud rollout in the memo, phases move on gates, not dates.
+
+**What we would measure at scale:**
+
+| Measure | Why |
+|---|---|
+| Staff overrides of the routing | Routing accuracy on your own complaints, and the label stream a production system learns from. |
+| `requires_human` misses, from sampled audits of auto-routed complaints | The safety measure. A miss is a complaint no person saw, so only an audit finds it. |
+| The automation rate and the mix of review reasons over time | Drift: a change in your intake or in the model's behaviour shows here first. |
+| Failure and re-ask rates, and latency | The component's health; so far the failure paths have run only in tests. |
+| Summary faithfulness, on a regular sample | The hallucination check that automatic checks can't do. |
+| Agreement when the same complaint is triaged twice | How steady the model's answers are (section 4.6). |
+| A standing attack suite, run on every model or prompt change | Whether a change weakens the injection defences. |
 
 ### 4.8 Cut and possible additions
 *Opens with what we built, by line count: essential code (969 of 1,246 lines) and each addition with its lines and reason. Then each cut and possible addition with its reason, including the output format (CSV with y/n against the brief's JSON example).*
