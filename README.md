@@ -41,7 +41,7 @@ Tested from a clean environment on Linux. You need `curl` and an internet connec
 8. **Replay the client's traffic through the API** (in a second terminal, with the API running). The default replays the demo slice, 42:40–43:20 at 4× (~10 minutes), with a live panel, then checks parity against the offline model and writes `reports/replay_report.md`. Run nothing heavy on the machine meanwhile: the replay, API and model share it, so other work shows up as latency.
    ```bash
    uv run scripts/replay.py
-   uv run scripts/replay.py --start 36:00 --length 720 --speed 60   # the whole test window (requests overlap at this speed)
+   uv run scripts/replay.py --start 39:31 --length 20   # another slice, same pace (keep the speed low enough that requests don't overlap)
    ```
    Score one transaction (the 28 components and Amount; other fields are ignored):
    ```bash

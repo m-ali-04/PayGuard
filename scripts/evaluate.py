@@ -22,7 +22,7 @@ from get_data import DEST, SHA256, is_valid
 from payguard.fraud.data import FEATURES, LABEL, WINDOWS, load, split
 from payguard.fraud.evaluation import (
     BOOTSTRAP_RESAMPLES, BOOTSTRAP_SEED, BUDGET, LATENCY_LIMIT_MS, alerts, at_budget, at_threshold,
-    paired_bootstrap, threshold_for_budget,
+    latency_summary, paired_bootstrap, threshold_for_budget,
 )
 from payguard.fraud.models import CANDIDATES
 from payguard.fraud.tracking import ROOT, StoreError, latest_run, use_local_store
@@ -68,8 +68,8 @@ def latency_ms(model, transactions: pd.DataFrame) -> tuple[float, float]:
         start = time.perf_counter()
         model.predict_proba(row)
         times.append((time.perf_counter() - start) * 1000)
-    p50, p99 = np.percentile(times, [50, 99])
-    return float(p50), float(p99)
+    s = latency_summary(np.array(times))
+    return float(s["p50"]), float(s["p99"])
 
 
 def caught(y: np.ndarray, scores: np.ndarray) -> int:

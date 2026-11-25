@@ -16,7 +16,7 @@ from get_data import SHA256
 from payguard.fraud.data import FEATURES, LABEL
 from payguard.fraud.evaluation import LATENCY_LIMIT_MS, at_threshold, latency_summary
 from payguard.fraud.tracking import ROOT, use_local_store
-from replay_panel import BIN_MIN, bin_start, clock, mm_ss
+from replay_panel import BIN_MIN, bin_start, hh_mm, mm_ss
 
 if TYPE_CHECKING:
     from replay import Results
@@ -40,14 +40,15 @@ def counts(y: np.ndarray, scores: np.ndarray, threshold: float) -> dict:
     o = at_threshold(y, scores, threshold)
     frauds = int(y.sum())
     return {"transactions": len(y), "frauds": frauds, "alerts": o["alerts"], "caught": o["caught"],
-            "false alerts": o["alerts"] - o["caught"], "missed": frauds - o["caught"], "recall": pct(o["recall"])}
+            "false alerts": o["alerts"] - o["caught"], "missed": frauds - o["caught"],
+            "recall": pct(o["recall"]) if frauds else "n/a"}
 
 
 def per_bin(data: pd.DataFrame, out: "Results") -> list[list]:
     y = data[LABEL].to_numpy() == 1
     frame = pd.DataFrame({"bin": bin_start(data.Time.to_numpy()), "n": 1, "alerts": out.alert,
                           "caught": out.alert & y, "false": out.alert & ~y, "missed": ~out.alert & y})
-    return [[clock(start)[:-3], f"{r.n:,}", r.alerts, r.caught, r.false, r.missed]
+    return [[hh_mm(start), f"{r.n:,}", r.alerts, r.caught, r.false, r.missed]
             for start, r in frame.groupby("bin").sum().iterrows()]
 
 

@@ -30,6 +30,12 @@ def clock(seconds: float) -> str:
     return f"{s // 3600}:{s % 3600 // 60:02d}:{s % 60:02d}"
 
 
+def hh_mm(seconds: float) -> str:
+    """Data time as H:MM, with :SS only when the seconds aren't zero."""
+    text = clock(seconds)
+    return text[:-3] if text.endswith(":00") else text
+
+
 def bin_start(t: np.ndarray) -> np.ndarray:
     """Start of each transaction's BIN_MIN-minute bin on the data clock (shared with the report)."""
     return t - t % (BIN_MIN * 60)
@@ -100,7 +106,7 @@ class LivePanel:
         for start in np.arange(bins[0], bins[-1] + 1, BIN_MIN * 60):
             rows = bins == start
             c, f, m = ((alert & self.fraud)[rows].sum(), (alert & ~self.fraud)[rows].sum(), missed[rows].sum())
-            t.add_row(Text(clock(start)[:-3], style="dim"),
+            t.add_row(Text(hh_mm(start), style="dim"),
                       Text.assemble(("█" * c, "green"), ("█" * f, "yellow"), ("·" * m, "red")))
         return Group(key, t)
 

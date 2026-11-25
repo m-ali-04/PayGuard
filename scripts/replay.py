@@ -2,7 +2,7 @@
 
 Start the API first: uv run uvicorn payguard.fraud.api:app
 Usage: uv run scripts/replay.py                                      # demo: 42:40–43:20 at 4x (10 min)
-       uv run scripts/replay.py --start 36:00 --length 720 --speed 60   # the whole test window
+       uv run scripts/replay.py --start 39:31 --length 20                # another slice, same pace
 Only the model fields are sent; the label stays here and is joined to each answer afterwards.
 """
 import argparse
@@ -21,7 +21,7 @@ from payguard.fraud.data import FEATURES, LABEL, WINDOWS, load, split
 from payguard.fraud.evaluation import LATENCY_LIMIT_MS
 from payguard.fraud.tracking import ROOT
 import replay_report
-from replay_panel import LivePanel, clock
+from replay_panel import LivePanel, hh_mm
 
 START_API = "uv run uvicorn payguard.fraud.api:app"
 # The 40 minutes of the test window with the most frauds (17), chosen by the owner for the demo. The pace is
@@ -45,8 +45,10 @@ class Results:
 
 def seconds(hh_mm: str) -> int:
     """'42:40' → seconds since the file's first transaction (the data's own clock)."""
-    h, m = hh_mm.split(":")
-    return int(h) * 3600 + int(m) * 60
+    h, m = (int(part) for part in hh_mm.split(":"))
+    if not 0 <= m < 60:
+        raise ValueError(f"minutes out of range: {m}")
+    return h * 3600 + m * 60
 
 
 def select(test: pd.DataFrame, start_s: int, length_min: float) -> pd.DataFrame:
@@ -67,10 +69,11 @@ async def score(client: httpx.AsyncClient, i: int, row: dict, due: float, t0: fl
     sent = time.perf_counter()
     out.lag_ms[i] = (sent - t0 - due) * 1000  # set before the answer, so the panel can count requests in flight
     response = await client.post("/v1/score", json=row)
-    out.latency_ms[i] = (time.perf_counter() - sent) * 1000
+    latency_ms = (time.perf_counter() - sent) * 1000
     response.raise_for_status()
     body = response.json()
     out.score[i], out.alert[i] = body["fraud_score"], body["alert"]
+    out.latency_ms[i] = latency_ms  # written last: the panel counts a request as answered once this is set
 
 
 async def replay(client: httpx.AsyncClient, rows: list[dict], due: np.ndarray, out: Results) -> None:
@@ -116,12 +119,14 @@ def main() -> int:
         sys.exit(f"No verified dataset at {DEST}. Run: uv run scripts/get_data.py")
     test = split(load(DEST))["test"]
     data = select(test, a.start_s, a.length)
+    if data.empty:
+        sys.exit(f"No transactions in the {a.length:g}-minute slice from {a.start}; choose a longer slice.")
     try:
         health = httpx.get(f"{a.url}/v1/health", timeout=5).raise_for_status().json()
     except httpx.HTTPError as e:
         sys.exit(f"Can't reach the scoring API at {a.url} ({e}). Start it: {START_API}")
 
-    end = clock(a.start_s + a.length * 60)[:-3]
+    end = hh_mm(a.start_s + a.length * 60)
     slice_desc = (f"Slice {a.start}–{end} ({a.length:g} data minutes, {len(data):,} transactions, "
                   f"{int(data[LABEL].sum())} frauds) at {a.speed:g}x")
     title = (f"PayGuard replay · {a.start}–{end} at {a.speed:g}x · {health['model']} run "

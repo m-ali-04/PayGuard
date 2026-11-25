@@ -23,6 +23,12 @@ def test_select_keeps_the_half_open_slice_in_time_order():
     assert replay.select(test, start_s=0, length_min=10).Time.tolist() == [0, 60, 599]
 
 
+@pytest.mark.parametrize("text", ["42:75", "42:-5", "4240"])
+def test_start_time_refuses_invalid_minutes(text):
+    with pytest.raises(ValueError):
+        replay.seconds(text)
+
+
 @pytest.fixture(scope="module")
 def scorer(raw) -> api.Scorer:
     model = hgb().fit(raw, raw[LABEL])

@@ -21,11 +21,13 @@ def alerts(n: int) -> int:
 def _outcome(y: np.ndarray, flagged: np.ndarray) -> dict:
     caught = int(y[flagged].sum())
     n_alerts = int(flagged.sum())
+    frauds = int(y.sum())
     return {
         "alerts": n_alerts,
         "caught": caught,
         "precision": caught / n_alerts if n_alerts else 0.0,
-        "recall": caught / int(y.sum()),
+        # Undefined without frauds (e.g. a quiet replay slice); nan rather than a misleading 0.
+        "recall": caught / frauds if frauds else float("nan"),
     }
 
 
