@@ -140,7 +140,20 @@ Amounts are in the data's own currency, which it doesn't name. Without a ratio, 
 - **The slice runs above average** (82% recall against 71%), because it was chosen as the most fraud-dense 40 minutes.
 
 ### 3.6 Real-time inference
-*Features must exist at authorisation time (why `Time` is dropped); velocity features need streaming state, the biggest production lever; label delay sets the retraining cadence; the upstream PCA step as a skew risk; the OpenMP finding and single-thread workers.*
+
+**Features have to exist when the transaction does.** At authorisation, the scorer sees only the transaction and whatever state has been kept about the card. The prototype's features, the 28 components and the amount, all arrive with the transaction, so the model needs no lookups and scores in about 6 ms at the median (14 ms at p99). `Time` fails that test: it counts from the start of a file, which doesn't exist live. Every feature added later has to pass it too: computable from data available at that moment, the same way in training and in serving.
+
+**Velocity features are the largest expected gain, and they need state.** Per-card aggregates, such as spend and attempts in the last minutes and hours, need a card ID and a running record for each card. In production, a stream processor keeps those records in an online store that the scorer reads within a few milliseconds; the memo uses Flink and Redis. The aggregates must come from one definition shared by training and serving, or the model learns one meaning and is scored on another. A feature store is how enterprises centralise those definitions; at the prototype's scale, one shared code path does the same job.
+
+**One code path, checked against the live service.** Preprocessing lives inside the saved model, so the service can't transform a transaction differently from training, and the replay confirmed it: every served score equalled the offline score. The remaining skew risk sits upstream. The 28 components come from a transformation applied before the data reached us; if it changes, scores shift while still looking normal. It needs versioning alongside the model, which is why the memo's monitoring checks input ranges and drift.
+
+**Modelling strategy: a stateless model, a fixed threshold, retraining paced by labels.**
+- The model scores each transaction on its own, so its decisions don't depend on arrival order or batching, and the same transaction always gets the same score.
+- The threshold is a fixed cut, so it needs recalibrating on live traffic as the score distribution moves; in our data it already moved between night and day (section 3.5).
+- Fraud is confirmed when a chargeback arrives, often weeks after the transaction. Until then a fraud looks genuine in the training data, and a fall in recall stays invisible. The label delay sets how often retraining is worth it; analysts' outcomes on alerts give an earlier, partial signal. Two days of data couldn't model this (section 3.7).
+- In production, new models would run in shadow beside the live one before promotion, and an anomaly score could flag new fraud patterns that labels don't cover yet (section 3.8).
+
+**Serving: one inference thread per request, scaled out.** By default, each model call spreads across every CPU core. That's fast while requests arrive one at a time, as in the demo, but overlapping calls compete for the same cores. Replaying at 24–30 times real time, the API fell behind: p99 latency reached about 22 seconds and some connections dropped. In a short probe, one inference thread per request removed the slowdown and was slightly faster per call (mean 8.3 ms, against 9.5 ms on default settings). We didn't adopt it, because the reported results were measured on default settings (section 3.8), but it underpins the memo's design: single-threaded scoring pods, added as traffic grows. Several worker processes on one machine also kept up, but the web server's multi-worker mode added about 40 ms to every kept-alive request, another reason to scale with pods rather than workers.
 
 ### 3.7 Limitations
 *Short history, no IDs, duplicates of unknown origin, day/night threshold drift, anonymised features, untested concurrent load.*
