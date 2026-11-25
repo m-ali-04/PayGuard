@@ -30,14 +30,14 @@ Git and CI test every change, including a check that served scores match offline
 
 **Privacy.**
 
-| Principle | How it's applied | Example tools |
-|---|---|---|
-| Private networking | No workload is reachable from the internet; your systems connect over a private link | Private subnets, PrivateLink / Direct Connect, security groups, Network Firewall |
-| Encryption | All data is encrypted in transit and at rest, with keys you control | TLS, KMS, Secrets Manager |
-| Least privilege | Every service and person gets only the access their job needs | IAM roles per service, IAM Identity Center + MFA, Kubernetes RBAC |
-| Audit | Every access, deployment, model and decision can be traced | CloudTrail, Git history, MLflow |
-| Minimisation | The platform sees card tokens, never card numbers, and only the fields the model needs | Tokenisation at ingestion, field allow-lists |
-| PCI DSS | Built to PCI DSS controls; tokenisation and segmentation keep scope small | Segmented subnets and accounts, AWS Config |
+| Principle | How it's applied (example tools) |
+|---|---|
+| Private networking | No workload is reachable from the internet; your systems connect over a private link (private subnets, PrivateLink / Direct Connect, security groups, Network Firewall) |
+| Encryption | All data is encrypted in transit and at rest, with keys you control (TLS, KMS, Secrets Manager) |
+| Least privilege | Every service and person gets only the access their job needs (IAM roles per service, IAM Identity Center + MFA, Kubernetes RBAC) |
+| Audit | Every access, deployment, model and decision can be traced (CloudTrail, Git history, MLflow) |
+| Minimisation | The platform sees card tokens, never card numbers, and only the fields the model needs (tokenisation at ingestion, field allow-lists) |
+| PCI DSS | Built to PCI DSS controls; tokenisation and segmentation keep scope small (segmented subnets and accounts, AWS Config) |
 
 **Retention.** Data is kept for your legal minimum, then deleted: Kafka holds days, and S3 holds the rest on cheaper storage tiers until lifecycle rules delete it.
 

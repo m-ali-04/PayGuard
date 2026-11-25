@@ -26,6 +26,7 @@ This file records the AI tools used on PayGuard, what each was used for, and rou
 | Triage evaluation: scoring helpers, report script, shared report helpers, Wilson ranges, tagged/untagged recall, workload, multi-vendor cost and prompt-injection sections (src/payguard/triage/evaluation.py, scripts/triage/evaluate_triage.py, src/payguard/reporting.py, tests/triage/test_triage_evaluation.py) | Claude Code | ~100% | 2026-11-25 (walked through with owner per session; PRs #8 and #9 merged; additions PR pending) |
 | Legal-words backstop in the review policy (src/payguard/triage/policy.py, tests/triage/test_policy.py) | Claude Code | ~100% | 2026-11-25 (option chosen by owner; PR #9 merged) |
 | Windows support: WSL route in README, line-ending rule, UTF-8 report writes (README.md, .gitattributes, scripts/fraud/{data_understanding,evaluate,replay_report}.py) | Claude Code | ~100% | 2026-11-25 (owner chose the WSL route; PR #8 merged) |
+| Memo PDF build: Markdown to HTML to PDF via headless Chrome (docs/build_memo_pdf.sh, docs/memo.css) | Claude Code | ~100% | 2026-11-26 (owner chose the route, the layout and where it lives; PR #13) |
 
 ## Usage Log
 
