@@ -1,8 +1,8 @@
 # Memo
 
-**To:** Chief Technology Officer, PayGuard
-**From:** Solutions Architect, Stixor
-**Date:** 26 November 2026
+**To:** Chief Technology Officer, PayGuard  
+**From:** Solutions Architect, Stixor  
+**Date:** 26 November 2026  
 **Subject:** Production design for the fraud-scoring prototype
 
 **Recommendation.** We recommend taking the fraud-scoring service to production in phases, starting in shadow mode with no effect on payments. On a held-out 12-hour window of your transactions, with alerts capped at an assumed 0.2% of traffic, the model caught 82 of 115 frauds and 66% of their value at a threshold fixed in advance (96 alerts, 14 false). It answered within 26 ms at p99 against a 50 ms limit, and served scores matched offline exactly. The evidence rests on 48 hours of anonymised data, and the threshold drifts between night and day. Velocity features and a steady label feed are the largest gains, and both depend on your team (see final section).
@@ -14,6 +14,7 @@
 Scoring stays synchronous: each authorisation travels over a private link to a load balancer and a pool of scoring pods on EKS. The pods read the card's velocity features from Redis and return a decision within the 50 ms limit. Nothing else sits in that path.
 
 Everything else runs alongside it:
+
 - **Kafka** (self-hosted on EKS) records every transaction, decision and delayed fraud label, partitioned by card token.
 - **Flink** turns that stream into velocity features in Redis and archives events to **S3**, the training source.
 - **MLflow** registers each retrained model with its threshold, so every decision traces to one model and one cut.
