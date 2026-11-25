@@ -26,7 +26,7 @@ Git and CI test every change, including a check that served scores match offline
 
 ## Data: privacy, residency, retention
 
-**Residency.** Every component in the figure runs in one in-country AWS region, and organisation-wide policies (SCP region-deny, Control Tower guardrails) block resources or replication anywhere else. The model is a small file served by our own pods, so no transaction is ever sent to an outside model API. The Git repository holds code, not customer data. If no AWS region exists in-country, the same design runs on AWS Outposts or on-premises Kubernetes, because Kafka, Flink, Redis and MLflow are all portable.
+**Residency.** Every component except Git + CI runs in one in-country AWS region, and organisation-wide policies (SCP region-deny, Control Tower guardrails) block resources or replication anywhere else. The model is a small file served by our own pods, so no transaction is ever sent to an outside model API. The Git repository holds code, not customer data. If no AWS region exists in-country, the same design runs on AWS Outposts or on-premises Kubernetes, because Kafka, Flink, Redis and MLflow are all portable.
 
 **Privacy.**
 
