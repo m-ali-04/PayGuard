@@ -1,4 +1,6 @@
-from payguard.triage.evaluation import gold_reasons, sentence_count, summary_issues
+import pytest
+
+from payguard.triage.evaluation import gold_reasons, sentence_count, summary_issues, wilson
 from payguard.triage.policy import Assessment, review_reasons
 from payguard.triage.taxonomy import Category, Flag, Urgency
 
@@ -33,3 +35,10 @@ def test_gold_uses_the_same_policy_as_the_model():
 def test_gold_ignores_the_legal_words_backstop():
     gold = {"category": "lending", "urgency": "medium"} | {flag: "n" for flag in Flag}
     assert gold_reasons("I reported this to the state attorney general last week.", "", gold) == []
+
+
+def test_wilson_matches_published_values():
+    # Reference values from statsmodels' proportion_confint(method="wilson").
+    assert wilson(20, 22) == pytest.approx((0.7219, 0.9747), abs=1e-4)
+    assert wilson(0, 10) == pytest.approx((0.0, 0.2775), abs=1e-4)
+    assert wilson(0, 0) == (0.0, 1.0)

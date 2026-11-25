@@ -14,8 +14,9 @@ import pandas as pd
 from get_complaints import DEST as SLICE, NARRATIVE, SEED
 from make_labelling_file import LABELS
 from payguard.reporting import pct, table
-from payguard.triage.evaluation import gold_reasons, summary_issues
+from payguard.triage.evaluation import gold_reasons, summary_issues, wilson
 from payguard.triage.pipeline import COLUMNS
+from payguard.triage.policy import LEGAL_REASON
 from payguard.triage.taxonomy import Category, Flag, Urgency, reference_category
 from run_triage import OUTPUT
 
@@ -23,8 +24,24 @@ REPORT = SLICE.parents[2] / "reports" / "triage" / "evaluation_report.md"
 SPOTCHECK = SLICE.with_name("summary_spotcheck.csv")
 SPOTCHECK_SIZE = 10
 MONTHLY_VOLUME = 50_000  # the client's figure
-# Claude Haiku 5.5, $ per million input / output tokens (checked 2026-11-25), as a hosted comparison.
-HOSTED_MODEL, HOSTED_IN, HOSTED_OUT = "Claude Haiku 5.5", 0.10, 0.50
+# Standard list prices, $ per million input / output tokens, checked 2026-11-25 on each vendor's pricing page.
+# Small models first, then one larger model per vendor for scale. Gemini 3.8 Flash is at its rate from
+# 2027-01-01 (half that until 2026-12-31).
+PRICES = [
+    ("Anthropic", "Claude Haiku 5.5", 0.10, 0.50),
+    ("OpenAI", "gpt-6-luna", 0.10, 0.50),
+    ("OpenAI", "gpt-5.4-nano", 0.20, 1.25),
+    ("Google", "gemini-3.5-flash-lite", 0.30, 2.50),
+    ("Mistral", "ministral-3-8b", 0.15, 0.15),
+    ("Mistral", "mistral-small-4", 0.15, 0.60),
+    ("Anthropic", "Claude Sonnet 5.5", 2.00, 10.00),
+    ("OpenAI", "gpt-6.1-terra", 1.00, 5.00),
+    ("Google", "gemini-3.8-flash", 1.50, 7.50),
+]
+# Renting a GPU to run the local model: GCP g2-standard-4 (one NVIDIA L4), us-central1 on-demand, checked
+# 2026-11-25. The latency was measured on an RTX 4070 Laptop GPU, not an L4, so this is rough.
+GPU_RENTAL, GPU_PER_HOUR = "GCP g2-standard-4 (1× NVIDIA L4)", 0.71
+HOURS_PER_MONTH = 730
 FAILED = "failed"
 
 
@@ -67,24 +84,51 @@ def confusion(gold: pd.Series, model: pd.Series, labels: list[str]) -> str:
     return table(["Gold \\ model", *counts.columns], [[label, *row] for label, row in counts.iterrows()])
 
 
+def rate(hits: pd.Series) -> str:
+    """'76.0% (38 of 50; 95% range 62.6%–85.7%)' for a boolean series."""
+    k, n = int(hits.sum()), len(hits)
+    if n == 0:
+        return "n/a (none)"
+    low, high = wilson(k, n)
+    return f"{pct(k / n)} ({k} of {n}; 95% range {pct(low)}–{pct(high)})"
+
+
+def without_legal_words(reasons: pd.Series) -> pd.Series:
+    """Whether a complaint would still go to a human with the post-results legal-words rule taken out."""
+    return reasons.str.split("; ").map(lambda rs: any(r and r != LEGAL_REASON for r in rs))
+
+
+def recall_table(g: pd.DataFrame) -> str:
+    """Recall split by CFPB tag: tagged complaints go to a human by rule in gold and pipeline alike, so they
+    can't be missed and lift the overall figure. The untagged row shows what the model and the other rules
+    catch on their own."""
+    need = g[g.gold_reasons.str.len() > 0]
+    tagged = need.tags.str.strip() != ""
+    groups = [("All", need), ("CFPB-tagged (sent by rule)", need[tagged]),
+              ("Untagged (caught by the model and other rules)", need[~tagged])]
+    return table(["Complaints needing a human", "Caught by the pipeline", "Caught without the legal-words rule"],
+                 [[name, rate(rows.requires_human == "y"), rate(without_legal_words(rows.review_reasons))]
+                  for name, rows in groups])
+
+
 def gold_section(graded: pd.DataFrame, split: str) -> str:
     g = graded[graded.split == split]
-    model_human, gold_human = g.requires_human == "y", g.gold_reasons.str.len() > 0
-    caught = (model_human & gold_human).sum()
+    gold_human = g.gold_reasons.str.len() > 0
     flag_rows = [[flag, (g[f"{flag}_gold"] == "y").sum(), ((g[f"{flag}_gold"] == "y") & (g[flag] == "y")).sum(),
                   ((g[f"{flag}_gold"] == "y") & (g[flag] != "y")).sum(), ((g[f"{flag}_gold"] == "n") & (g[flag] == "y")).sum()]
                  for flag in Flag]
     return "\n\n".join([
         f"### {split} ({len(g)} complaints)",
-        f"Category accuracy **{pct((g.category == g.category_gold).mean())}**, urgency accuracy "
-        f"**{pct((g.urgency == g.urgency_gold).mean())}**. A failed call counts as wrong.",
+        f"Category accuracy **{rate(g.category == g.category_gold)}**; urgency accuracy "
+        f"**{rate(g.urgency == g.urgency_gold)}**. A failed call counts as wrong.",
         confusion(g.category_gold, g.category, list(Category)),
         confusion(g.urgency_gold, g.urgency.replace("", FAILED), list(Urgency)),
         "Flags, as counts (too few cases for a meaningful rate):",
         table(["Flag", "Gold cases", "Caught", "Missed", "False alerts"], flag_rows),
-        f"`requires_human`: the gold labels send {gold_human.sum()} to a human; the pipeline catches "
-        f"{caught} (recall {pct(caught / gold_human.sum()) if gold_human.sum() else 'n/a'}) and sends "
-        f"{model_human.sum()} in all (precision {pct(caught / model_human.sum()) if model_human.sum() else 'n/a'}).",
+        "`requires_human` recall (complaints the gold labels send to a human that the pipeline sends to one):",
+        recall_table(g),
+        f"Precision: of the {(g.requires_human == 'y').sum()} the pipeline sends to a human, "
+        f"{rate(gold_human[g.requires_human == 'y'])} need one by the gold labels.",
     ])
 
 
@@ -157,22 +201,64 @@ def summary_section(out: pd.DataFrame) -> str:
     return "\n\n".join(["## 6. Summaries", *lines, spotcheck_status(out)])
 
 
+def workload_section(out: pd.DataFrame, graded: pd.DataFrame) -> str:
+    auto = out.requires_human == "n"
+    routed = graded[graded.requires_human == "n"]
+    by_split = {split: routed[routed.split == split] for split in ("test", "dev")}
+    wrong = routed[routed.category != routed.category_gold]
+    narrative_words, summary_words = out.narrative.str.split().str.len(), out.summary.str.split().str.len()
+    lines = [
+        f"### Manual triage avoided\n\n{pct(auto.mean())} of the {len(out)} complaints were routed with no human. "
+        f"At {MONTHLY_VOLUME:,} a month that is about **{auto.mean() * MONTHLY_VOLUME:,.0f} complaints** that skip "
+        f"manual triage; the other {(~auto).mean() * MONTHLY_VOLUME:,.0f} reach a human already routed and summarised, "
+        "with the reasons they were flagged.",
+        "### Routing accuracy of the automatically routed complaints\n\nOf the gold complaints the pipeline would route "
+        "with no human, the share sent to the team the gold labels choose:",
+        table(["Split", "Right team"], [[split, rate(rows.category == rows.category_gold)]
+                                       for split, rows in by_split.items()]),
+    ]
+    if not wrong.empty:
+        lines.append(table(["Misrouted", "Split", "Gold category", "Model category"],
+                           [[r.complaint_id, r.split, r.category_gold, r.category] for r in wrong.itertuples()]))
+    lines += [
+        "### Summary length\n\nWhat a reviewer reads instead of the full narrative:",
+        table(["Words", "Mean", "Median"],
+              [["Narrative", f"{narrative_words.mean():.0f}", f"{narrative_words.median():.0f}"],
+               ["Summary", f"{summary_words.mean():.0f}", f"{summary_words.median():.0f}"]]),
+        f"In all, the summaries hold {pct(summary_words.sum() / narrative_words.sum())} of the narratives' words.",
+    ]
+    return "\n\n".join([f"## 7. Workload at {MONTHLY_VOLUME:,} complaints a month", *lines])
+
+
 def cost_section(out: pd.DataFrame) -> str:
     called = out[out.attempts != ""]
     latency = called.latency_s.astype(float)
-    tokens_in, tokens_out = called.prompt_tokens.astype(int).mean(), called.output_tokens.astype(int).mean()
-    compute_hours = latency.mean() * MONTHLY_VOLUME / 3600
-    hosted = (tokens_in * HOSTED_IN + tokens_out * HOSTED_OUT) / 1e6 * MONTHLY_VOLUME
+    tokens_in, tokens_out = called.prompt_tokens.astype(int), called.output_tokens.astype(int)
+    monthly_in, monthly_out = tokens_in.mean() * MONTHLY_VOLUME / 1e6, tokens_out.mean() * MONTHLY_VOLUME / 1e6
+    gpu_hours = latency.mean() * MONTHLY_VOLUME / 3600
+    reasks = (pd.to_numeric(called.attempts) > 1).sum()
     return "\n\n".join([
-        "## 7. Cost and latency",
+        "## 8. Cost and latency",
         table(["Per complaint", "Mean", "p95"],
               [["Latency (s)", f"{latency.mean():.2f}", f"{np.percentile(latency, 95):.2f}"],
-               ["Input tokens", f"{tokens_in:.0f}", f"{np.percentile(called.prompt_tokens.astype(int), 95):.0f}"],
-               ["Output tokens", f"{tokens_out:.0f}", f"{np.percentile(called.output_tokens.astype(int), 95):.0f}"]]),
-        f"At {MONTHLY_VOLUME:,} complaints a month: **{compute_hours:.0f} compute-hours** for one worker processing them one "
-        f"at a time on the machine that ran the batch (no API cost). The same token counts on {HOSTED_MODEL} "
-        f"(${HOSTED_IN:.2f}/${HOSTED_OUT:.2f} per million tokens) would cost about **${hosted:,.0f} a month**; "
-        "tokenizers differ, so that's a rough comparison.",
+               ["Input tokens", f"{tokens_in.mean():.0f}", f"{np.percentile(tokens_in, 95):.0f}"],
+               ["Output tokens", f"{tokens_out.mean():.0f}", f"{np.percentile(tokens_out, 95):.0f}"]]),
+        f"### Hosted APIs\n\nThe measured mean tokens at {MONTHLY_VOLUME:,} complaints a month are {monthly_in:.1f}M in "
+        f"and {monthly_out:.1f}M out. At standard list prices (checked 2026-11-25):",
+        table(["Vendor", "Model", "$ per M in", "$ per M out", "About $ a month"],
+              [[vendor, model, f"{p_in:.2f}", f"{p_out:.2f}", f"{monthly_in * p_in + monthly_out * p_out:,.0f}"]
+               for vendor, model, p_in, p_out in PRICES]),
+        "Rough: the token counts are Granite's and every vendor's tokenizer counts differently. Batch APIs halve "
+        "these prices where offered (Anthropic, OpenAI, Google), if triage can wait for a batch. The token means "
+        f"include re-asks ({reasks} in this run). Gemini 3.8 Flash is at its rate from 2027-01-01; regional endpoints "
+        "can cost more.",
+        f"### Local model on a rented GPU\n\nAt {latency.mean():.2f} s a complaint, one worker needs about "
+        f"**{gpu_hours:.0f} GPU-hours a month**. On {GPU_RENTAL} at ${GPU_PER_HOUR:.2f} an hour (on-demand) that is "
+        f"about **${gpu_hours * GPU_PER_HOUR:,.0f} a month** if billed only while running, or "
+        f"${HOURS_PER_MONTH * GPU_PER_HOUR:,.0f} for an instance left on all month. Rough: the latency was measured "
+        "on an RTX 4070 Laptop GPU, not an L4.",
+        "### What it implies\n\nThe model costs tens to a few hundred dollars a month on any option above. The cost "
+        "that matters is the complaints still reaching a human (see Workload above).",
     ])
 
 
@@ -196,6 +282,7 @@ def main() -> int:
         cfpb_section(out, graded),
         consistency_section(out),
         summary_section(out),
+        workload_section(out, graded),
         cost_section(out),
     ]) + "\n", encoding="utf-8")
     print(f"Wrote {REPORT}")

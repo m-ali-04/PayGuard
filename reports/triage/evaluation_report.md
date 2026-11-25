@@ -27,7 +27,7 @@ Why complaints go to a human (a complaint can have several reasons):
 
 ### test (50 complaints)
 
-Category accuracy **76.0%**, urgency accuracy **74.0%**. A failed call counts as wrong.
+Category accuracy **76.0% (38 of 50; 95% range 62.6%–85.7%)**; urgency accuracy **74.0% (37 of 50; 95% range 60.4%–84.1%)**. A failed call counts as wrong.
 
 | Gold \ model | fraud_scams | credit_reporting | debt_collection | banking_payments | credit_cards | lending | other |
 |---|---|---|---|---|---|---|---|
@@ -55,11 +55,19 @@ Flags, as counts (too few cases for a meaningful rate):
 | safety_risk | 0 | 0 | 0 | 0 |
 | discrimination | 0 | 0 | 0 | 0 |
 
-`requires_human`: the gold labels send 27 to a human; the pipeline catches 25 (recall 92.6%) and sends 28 in all (precision 89.3%).
+`requires_human` recall (complaints the gold labels send to a human that the pipeline sends to one):
+
+| Complaints needing a human | Caught by the pipeline | Caught without the legal-words rule |
+|---|---|---|
+| All | 92.6% (25 of 27; 95% range 76.6%–97.9%) | 85.2% (23 of 27; 95% range 67.5%–94.1%) |
+| CFPB-tagged (sent by rule) | 100.0% (13 of 13; 95% range 77.2%–100.0%) | 100.0% (13 of 13; 95% range 77.2%–100.0%) |
+| Untagged (caught by the model and other rules) | 85.7% (12 of 14; 95% range 60.1%–96.0%) | 71.4% (10 of 14; 95% range 45.4%–88.3%) |
+
+Precision: of the 28 the pipeline sends to a human, 89.3% (25 of 28; 95% range 72.8%–96.3%) need one by the gold labels.
 
 ### dev (30 complaints)
 
-Category accuracy **86.7%**, urgency accuracy **63.3%**. A failed call counts as wrong.
+Category accuracy **86.7% (26 of 30; 95% range 70.3%–94.7%)**; urgency accuracy **63.3% (19 of 30; 95% range 45.5%–78.1%)**. A failed call counts as wrong.
 
 | Gold \ model | fraud_scams | credit_reporting | debt_collection | banking_payments | credit_cards | lending | other |
 |---|---|---|---|---|---|---|---|
@@ -87,7 +95,15 @@ Flags, as counts (too few cases for a meaningful rate):
 | safety_risk | 0 | 0 | 0 | 0 |
 | discrimination | 1 | 0 | 1 | 1 |
 
-`requires_human`: the gold labels send 13 to a human; the pipeline catches 13 (recall 100.0%) and sends 15 in all (precision 86.7%).
+`requires_human` recall (complaints the gold labels send to a human that the pipeline sends to one):
+
+| Complaints needing a human | Caught by the pipeline | Caught without the legal-words rule |
+|---|---|---|
+| All | 100.0% (13 of 13; 95% range 77.2%–100.0%) | 92.3% (12 of 13; 95% range 66.7%–98.6%) |
+| CFPB-tagged (sent by rule) | 100.0% (8 of 8; 95% range 67.6%–100.0%) | 100.0% (8 of 8; 95% range 67.6%–100.0%) |
+| Untagged (caught by the model and other rules) | 100.0% (5 of 5; 95% range 56.6%–100.0%) | 80.0% (4 of 5; 95% range 37.6%–96.4%) |
+
+Precision: of the 15 the pipeline sends to a human, 86.7% (13 of 15; 95% range 62.1%–96.3%) need one by the gold labels.
 
 ## 3. Sensitive cases routed without a human
 
@@ -127,7 +143,38 @@ Numbers not found in the complaint (could be invented, or a rewritten date or am
 
 Human spot-check: **10 of 10** test summaries judged faithful.
 
-## 7. Cost and latency
+## 7. Workload at 50,000 complaints a month
+
+### Manual triage avoided
+
+45.6% of the 500 complaints were routed with no human. At 50,000 a month that is about **22,800 complaints** that skip manual triage; the other 27,200 reach a human already routed and summarised, with the reasons they were flagged.
+
+### Routing accuracy of the automatically routed complaints
+
+Of the gold complaints the pipeline would route with no human, the share sent to the team the gold labels choose:
+
+| Split | Right team |
+|---|---|
+| test | 90.9% (20 of 22; 95% range 72.2%–97.5%) |
+| dev | 100.0% (15 of 15; 95% range 79.6%–100.0%) |
+
+| Misrouted | Split | Gold category | Model category |
+|---|---|---|---|
+| 23110857 | test | other | credit_reporting |
+| 19627083 | test | lending | credit_reporting |
+
+### Summary length
+
+What a reviewer reads instead of the full narrative:
+
+| Words | Mean | Median |
+|---|---|---|
+| Narrative | 232 | 177 |
+| Summary | 34 | 32 |
+
+In all, the summaries hold 14.6% of the narratives' words.
+
+## 8. Cost and latency
 
 | Per complaint | Mean | p95 |
 |---|---|---|
@@ -135,4 +182,28 @@ Human spot-check: **10 of 10** test summaries judged faithful.
 | Input tokens | 1142 | 1643 |
 | Output tokens | 162 | 195 |
 
-At 50,000 complaints a month: **41 compute-hours** for one worker processing them one at a time on the machine that ran the batch (no API cost). The same token counts on Claude Haiku 5.5 ($0.10/$0.50 per million tokens) would cost about **$10 a month**; tokenizers differ, so that's a rough comparison.
+### Hosted APIs
+
+The measured mean tokens at 50,000 complaints a month are 57.1M in and 8.1M out. At standard list prices (checked 2026-11-25):
+
+| Vendor | Model | $ per M in | $ per M out | About $ a month |
+|---|---|---|---|---|
+| Anthropic | Claude Haiku 5.5 | 0.10 | 0.50 | 10 |
+| OpenAI | gpt-6-luna | 0.10 | 0.50 | 10 |
+| OpenAI | gpt-5.4-nano | 0.20 | 1.25 | 22 |
+| Google | gemini-3.5-flash-lite | 0.30 | 2.50 | 37 |
+| Mistral | ministral-3-8b | 0.15 | 0.15 | 10 |
+| Mistral | mistral-small-4 | 0.15 | 0.60 | 13 |
+| Anthropic | Claude Sonnet 5.5 | 2.00 | 10.00 | 195 |
+| OpenAI | gpt-6.1-terra | 1.00 | 5.00 | 98 |
+| Google | gemini-3.8-flash | 1.50 | 7.50 | 146 |
+
+Rough: the token counts are Granite's and every vendor's tokenizer counts differently. Batch APIs halve these prices where offered (Anthropic, OpenAI, Google), if triage can wait for a batch. The token means include re-asks (0 in this run). Gemini 3.8 Flash is at its rate from 2027-01-01; regional endpoints can cost more.
+
+### Local model on a rented GPU
+
+At 2.96 s a complaint, one worker needs about **41 GPU-hours a month**. On GCP g2-standard-4 (1× NVIDIA L4) at $0.71 an hour (on-demand) that is about **$29 a month** if billed only while running, or $518 for an instance left on all month. Rough: the latency was measured on an RTX 4070 Laptop GPU, not an L4.
+
+### What it implies
+
+The model costs tens to a few hundred dollars a month on any option above. The cost that matters is the complaints still reaching a human (see Workload above).

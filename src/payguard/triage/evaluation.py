@@ -1,4 +1,5 @@
-"""Scoring helpers for the triage evaluation: the gold policy and the automatic summary checks."""
+"""Scoring helpers for the triage evaluation: the gold policy, the summary checks and the intervals."""
+import math
 import re
 
 from payguard.triage.policy import LEGAL_REASON, Assessment, review_reasons
@@ -10,6 +11,21 @@ NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 # so "U.S. Bank" doesn't count as two sentences.
 SENTENCE_END = re.compile(r"(?<!\b[A-Z])[.!?](?=\s+[A-Z\"']|\s*$)")
 MAX_SENTENCES = 2
+Z_95 = 1.959964
+
+
+def wilson(k: int, n: int) -> tuple[float, float]:
+    """95% Wilson score interval for k successes in n.
+
+    Wilson rather than the textbook p ± 1.96·SE because that one breaks at small n and at rates near 0 or
+    1 (20 of 22 would reach past 100%), which is exactly where the test set's numbers sit.
+    """
+    if n == 0:
+        return 0.0, 1.0
+    p = k / n
+    centre = (p + Z_95**2 / (2 * n)) / (1 + Z_95**2 / n)
+    half = Z_95 * math.sqrt(p * (1 - p) / n + Z_95**2 / (4 * n**2)) / (1 + Z_95**2 / n)
+    return max(0.0, centre - half), min(1.0, centre + half)
 
 
 def gold_reasons(narrative: str, tags: str, gold: dict[str, str]) -> list[str]:
