@@ -1,6 +1,6 @@
 """Fit each shortlisted model on the training window and log it to MLflow.
 
-Usage: uv run scripts/train.py
+Usage: uv run scripts/fraud/train.py
 Browse: uv run mlflow ui --backend-store-uri sqlite:///mlflow.db
 No scores are computed here: the decision report evaluates the logged models.
 """
@@ -39,7 +39,7 @@ def train(name: str, train_df: pd.DataFrame, session: str) -> None:
 
 def main() -> int:
     if not is_valid(DEST):
-        print(f"No verified dataset at {DEST}. Run: uv run scripts/get_data.py", file=sys.stderr)
+        print(f"No verified dataset at {DEST}. Run: uv run scripts/fraud/get_data.py", file=sys.stderr)
         return 1
     train_df = split(load(DEST))["train"]
     try:

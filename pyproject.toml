@@ -8,6 +8,7 @@ dependencies = [
     "mlflow>=3.18.0",
     "numpy>=2.5.5",
     "pandas>=3.1.1",
+    "pydantic>=2.14.4",
     "rich>=15.0.0",
     "scikit-learn>=1.9.1",
     "uvicorn>=0.54.0",
@@ -27,5 +28,5 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Lets tests reuse the hash-checked data path from scripts/get_data.py.
-pythonpath = ["scripts"]
+# Lets tests reuse the hash-checked data path from scripts/fraud/get_data.py.
+pythonpath = ["scripts/fraud", "scripts/triage"]

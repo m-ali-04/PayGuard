@@ -38,7 +38,7 @@ def load_selected() -> Scorer:
     # cut would pair a model with a threshold set on different scores.
     if pd.isna(threshold):
         raise StoreError(f"The latest '{SELECTED}' run ({run.run_id[:8]}) has no live threshold. "
-                         "Run: uv run scripts/evaluate.py")
+                         "Run: uv run scripts/fraud/evaluate.py")
     return Scorer(mlflow.sklearn.load_model(f"runs:/{run.run_id}/model"), float(threshold), run.run_id)
 
 

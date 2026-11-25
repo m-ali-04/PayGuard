@@ -1,7 +1,9 @@
 CLAUDE.local.md
-data/
+data/*
+!data/triage/
 .venv/
 __pycache__/
 context/
 mlflow.db
 mlruns/
+data/triage/trial_*.csv

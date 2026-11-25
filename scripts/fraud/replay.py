@@ -1,8 +1,8 @@
 """Replay a slice of the client's test window to the scoring API, in time order and condensed in time.
 
 Start the API first: uv run uvicorn payguard.fraud.api:app
-Usage: uv run scripts/replay.py                                      # demo: 42:40–43:20 at 4x (10 min)
-       uv run scripts/replay.py --start 39:31 --length 20                # another slice, same pace
+Usage: uv run scripts/fraud/replay.py                                      # demo: 42:40–43:20 at 4x (10 min)
+       uv run scripts/fraud/replay.py --start 39:31 --length 20                # another slice, same pace
 Only the model fields are sent; the label stays here and is joined to each answer afterwards.
 """
 import argparse
@@ -116,7 +116,7 @@ def args() -> argparse.Namespace:
 def main() -> int:
     a = args()
     if not is_valid(DEST):
-        sys.exit(f"No verified dataset at {DEST}. Run: uv run scripts/get_data.py")
+        sys.exit(f"No verified dataset at {DEST}. Run: uv run scripts/fraud/get_data.py")
     test = split(load(DEST))["test"]
     data = select(test, a.start_s, a.length)
     if data.empty:

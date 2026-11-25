@@ -1,0 +1,3 @@
+# The complaint slice is verified by SHA-256; Windows checkouts with core.autocrlf
+# would rewrite its line endings and break the hash, so git must keep its bytes as-is.
+data/triage/*.csv -text
