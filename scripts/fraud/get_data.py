@@ -30,10 +30,8 @@ def from_kaggle(tmp: Path) -> Path:
     # 1.7.x doesn't have the bug but requires credentials, so 2.x is pinned instead.
     # Public download worked anonymously in testing; if Kaggle asks for auth, add
     # ~/.kaggle/kaggle.json or set KAGGLE_USERNAME / KAGGLE_KEY.
-    # `python -m kaggle` rather than the kaggle.exe launcher uv generates: that launcher is unsigned,
-    # and Windows Smart App Control blocks it.
     subprocess.run(
-        ["uvx", "--with", "six", "--from", "kaggle==2.2.5", "python", "-m", "kaggle", "datasets", "download",
+        ["uvx", "--with", "six", "kaggle==2.2.5", "datasets", "download",
          KAGGLE_DATASET, "-p", str(tmp), "--unzip"],
         check=True,
     )

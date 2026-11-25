@@ -29,6 +29,12 @@ Running log of context provided about the project. Items that belong in CLAUDE.m
 
 *(Added to CLAUDE.md. README created with the approved outline.)*
 
+### Windows Support (2026-11-25)
+- **Question (owner):** does the reproducibility have Windows or Linux limitations? An audit found the Python code portable (lockfile covers Windows, pathlib paths) but the setup docs bash-only, and nothing tested on Windows.
+- **Native attempt:** a PowerShell script (kept every install inside the repo) was tried on the owner's Windows 11 machine, which has Smart App Control on. SAC blocked, in turn: uv's unsigned Python builds (worked around with python.org's signed build), uv's unsigned `.exe` launchers such as `kaggle.exe` (worked around with `python -m`), and then scikit-learn's own compiled files from PyPI, which can't be worked around inside the project. So native Windows only runs with SAC off.
+- **Real bug found on the way:** the three report writers used the locale's encoding (cp1252 on Windows) and failed on `≤`. Fixed with explicit UTF-8.
+- **Decision (owner): WSL2 is the Windows route.** The README Linux steps run unchanged inside WSL2, which is also where all results so far were produced (same machine). The native-only workarounds were removed (script, signed Python, `python -m kaggle`); the UTF-8 fix stays, and `.gitattributes` keeps the committed complaint slice's bytes on Windows-side checkouts.
+
 ## Problem 1: Fraud Detection
 
 ### Goal

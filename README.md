@@ -4,13 +4,9 @@ Prototype solutions for a finance client's two problems: **(1) real-time fraud d
 
 ## Setup
 
-Tested from a clean environment on Linux. You need `curl` and an internet connection.
+Tested from a clean environment on Linux (WSL2 on Windows 11). You need `curl` and an internet connection.
 
-**On Windows**, `reproduce_windows.ps1` runs steps 1–10 in order (about 20 minutes) from PowerShell, with uv, Python, the package cache and the Kaggle CLI's files kept inside the repo (`.tools\`, `.venv\`) rather than in your user profile:
-```powershell
-powershell -ExecutionPolicy Bypass -File reproduce_windows.ps1
-```
-It uses python.org's signed Python 3.12.10 (from its NuGet package, hash-checked) instead of the build uv downloads: uv's Windows builds are unsigned, and Smart App Control blocks them ([astral-sh/uv#22869](https://github.com/astral-sh/uv/issues/22869)). The first import of the packages is slow while Windows checks each new file. *A full run on Windows is still pending*; replay latency there isn't comparable with the Linux figures below.
+**On Windows, use WSL2.** In an administrator PowerShell, run `wsl --install` and restart; then open Ubuntu and follow the steps below unchanged. Clone into the Linux home folder (e.g. `~/PayGuard`), not under `/mnt/c` or `/mnt/d`, which are much slower from WSL. The API is reachable from a Windows browser at the same `127.0.0.1` addresses. Native Windows isn't supported: on machines with Smart App Control on, Windows blocks the unsigned compiled files that uv's Python and the scientific packages (numpy, pandas, scikit-learn) ship.
 
 1. **Install uv** (the Python package and project manager):
    ```bash
