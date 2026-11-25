@@ -206,7 +206,7 @@ def write_report(results: dict[str, dict], windows: dict[str, pd.DataFrame]) -> 
         table(["Model", "Saved model size", "Notes"],
               [[n, f"{r['size'] / 1024:,.0f} KB", NOTES[n](r["clf"])] for n, r in results.items()]),
     ]
-    REPORT.write_text("\n\n".join(sections) + "\n")
+    REPORT.write_text("\n\n".join(sections) + "\n", encoding="utf-8")
 
 
 def main() -> int:

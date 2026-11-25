@@ -90,5 +90,5 @@ def write(data: pd.DataFrame, test: pd.DataFrame, out: "Results", run_id: str, t
         f"## 4. Per {BIN_MIN} data minutes",
         table(["Data time", "Transactions", "Alerts", "Caught", "False alerts", "Missed"], per_bin(data, out)),
     ]
-    REPORT.write_text("\n\n".join(sections) + "\n")
+    REPORT.write_text("\n\n".join(sections) + "\n", encoding="utf-8")
     return {**served, **par, "p99": lat["p99"]}
