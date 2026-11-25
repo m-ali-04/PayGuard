@@ -198,7 +198,7 @@ The measured mean tokens at 50,000 complaints a month are 57.1M in and 8.1M out.
 | OpenAI | gpt-6.1-terra | 1.00 | 5.00 | 98 |
 | Google | gemini-3.8-flash | 1.50 | 7.50 | 146 |
 
-Rough: the token counts are Granite's and every vendor's tokenizer counts differently. Batch APIs halve these prices where offered (Anthropic, OpenAI, Google), if triage can wait for a batch. Retries would add tokens (this run needed none). Gemini 3.8 Flash is at its rate from 2027-01-01; regional endpoints can cost more.
+Rough: the token counts are Granite's and every vendor's tokenizer counts differently. Batch APIs halve these prices where offered (Anthropic, OpenAI, Google), if triage can wait for a batch. The token means include re-asks (0 in this run). Gemini 3.8 Flash is at its rate from 2027-01-01; regional endpoints can cost more.
 
 ### Local model on a rented GPU
 
@@ -206,4 +206,4 @@ At 2.96 s a complaint, one worker needs about **41 GPU-hours a month**. On GCP g
 
 ### What it implies
 
-The model costs tens to a few hundred dollars a month on any option above. The cost that matters is the complaints still reaching a human (section 7).
+The model costs tens to a few hundred dollars a month on any option above. The cost that matters is the complaints still reaching a human (see Workload above).

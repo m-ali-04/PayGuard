@@ -236,6 +236,7 @@ def cost_section(out: pd.DataFrame) -> str:
     tokens_in, tokens_out = called.prompt_tokens.astype(int), called.output_tokens.astype(int)
     monthly_in, monthly_out = tokens_in.mean() * MONTHLY_VOLUME / 1e6, tokens_out.mean() * MONTHLY_VOLUME / 1e6
     gpu_hours = latency.mean() * MONTHLY_VOLUME / 3600
+    reasks = (pd.to_numeric(called.attempts) > 1).sum()
     return "\n\n".join([
         "## 8. Cost and latency",
         table(["Per complaint", "Mean", "p95"],
@@ -248,15 +249,16 @@ def cost_section(out: pd.DataFrame) -> str:
               [[vendor, model, f"{p_in:.2f}", f"{p_out:.2f}", f"{monthly_in * p_in + monthly_out * p_out:,.0f}"]
                for vendor, model, p_in, p_out in PRICES]),
         "Rough: the token counts are Granite's and every vendor's tokenizer counts differently. Batch APIs halve "
-        "these prices where offered (Anthropic, OpenAI, Google), if triage can wait for a batch. Retries would add "
-        "tokens (this run needed none). Gemini 3.8 Flash is at its rate from 2027-01-01; regional endpoints can cost more.",
+        "these prices where offered (Anthropic, OpenAI, Google), if triage can wait for a batch. The token means "
+        f"include re-asks ({reasks} in this run). Gemini 3.8 Flash is at its rate from 2027-01-01; regional endpoints "
+        "can cost more.",
         f"### Local model on a rented GPU\n\nAt {latency.mean():.2f} s a complaint, one worker needs about "
         f"**{gpu_hours:.0f} GPU-hours a month**. On {GPU_RENTAL} at ${GPU_PER_HOUR:.2f} an hour (on-demand) that is "
         f"about **${gpu_hours * GPU_PER_HOUR:,.0f} a month** if billed only while running, or "
         f"${HOURS_PER_MONTH * GPU_PER_HOUR:,.0f} for an instance left on all month. Rough: the latency was measured "
         "on an RTX 4070 Laptop GPU, not an L4.",
         "### What it implies\n\nThe model costs tens to a few hundred dollars a month on any option above. The cost "
-        "that matters is the complaints still reaching a human (section 7).",
+        "that matters is the complaints still reaching a human (see Workload above).",
     ])
 
 
