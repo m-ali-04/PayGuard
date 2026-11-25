@@ -177,3 +177,31 @@ Full numbers: [decision report](reports/fraud/decision_report.md) (regenerate wi
   - **Many sensitive cases:** keyword counts suggest about 22% mention fraud or unauthorised activity and 12% legal action. 19% are tagged Servicemember or Older American.
   - **No prompt injections** in the real data, so the adversarial cases will be synthetic and kept separate.
   - **Redaction:** CFPB removed personal details before publishing (`XXXX`, `XX/XX/2026`; amounts as `{$…}`). That hides names, dates and deadlines the triage might use. The client's own complaints would arrive unredacted, which raises a data-handling question for production (personal data sent to an LLM provider).
+
+### Triage design
+
+The client's question: can an LLM take work off a fully manual support team, routing each complaint to the right team with a summary, **without hallucinating or misrouting sensitive cases**? The design keeps the LLM to judgements a schema can constrain, and puts the safety rule in code.
+
+- **One vocabulary, one set of definitions** (`src/payguard/triage/taxonomy.py`). The labelling guide is generated from them and the LLM prompt will use the same text, so human labels and model output are judged against identical wording.
+- **Seven routing categories,** applied in order: fraud or unauthorised activity → `fraud_scams` on any product; otherwise credit-report content → `credit_reporting` from any company; otherwise by product: `debt_collection`, `banking_payments`, `credit_cards`, `lending`. `other` is used only when the text is unclear or fits none. The output schema allows only these values, so the model can't invent a category.
+- **Urgency is harm-led** (low, medium, high): the kind of harm and whether it's ongoing, imminent or past. Time cues in the text can raise urgency. Missing or redacted time never lowers it: 69% of the slice has no usable time cue after CFPB's redaction, and only one explicit date survives. On the client's unredacted complaints, time would carry more weight.
+- **Five flags** the LLM sets from the text, each with a boundary:
+  - `fraud_allegation`: a dispute over a debt's amount isn't fraud
+  - `legal_threat`: citing a law isn't a threat
+  - `vulnerable_customer`: from the text only
+  - `safety_risk`: a rude collector isn't a safety risk
+  - `discrimination`: needs a protected characteristic
+
+  There's no tone flag and no regulator flag, since every complaint here was filed with a regulator.
+- **`requires_human` is a policy in code** (`src/payguard/triage/policy.py`), not a prompt instruction, so text in a complaint can't switch it off. It collects **every** reason that applies, and no check can hide another:
+  - any CFPB tag (Older American, Servicemember)
+  - an unusable narrative (under 5 words, an assumption; these skip the LLM)
+  - a failed LLM call
+  - category `other`
+  - high urgency
+  - any flag
+
+  The reasons go into the output so reviewers see why. The policy never changes urgency, so a tagged complaint about a minor issue is reviewed at low priority but never auto-closed. The tag rule costs about 11% more reviews in the slice (53 tagged complaints with nothing sensitive in the text), accepted deliberately for protected groups.
+- **Weak CFPB reference:** CFPB's product and issue fields map to the same categories in the same rule order, to check broad agreement on all 500. It's weakest where the stakes are highest: CFPB's issue field marks 12 complaints as fraud, while about 22% of narratives use fraud language.
+- **Gold set:** 80 complaints labelled blind by the project owner (narrative and tags only; no CFPB product or issue, no model output), 30 dev / 50 held out, one copy per narrative so template complaints can't sit on both sides. Created with `uv run scripts/triage/make_labelling_file.py`, validated with `--check`. Gold `requires_human` comes from the same policy applied to the owner's labels.
+- **Future modification:** if the review queue still outruns the team, add priority tiers or narrow the tag rule. Today every complaint is handled manually, so reviewer capacity isn't a constraint for the prototype.
