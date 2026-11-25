@@ -288,3 +288,8 @@ These are guidelines that add to normal planning practice (including plan mode).
 - Workflow: one branch and one PR per step, with conventional commits. Claude runs a code review on each PR and posts the findings, then the owner reviews and merges. Merging means the code is final. At milestones, the owner can run `/code-review ultra`.
 
 *(Added to CLAUDE.md via PR)*
+
+### Layout for Two Problems (2026-11-25)
+- **Discussion:** the code was already split by problem (`src/payguard/fraud/`), but `scripts/`, `reports/` and `tests/` were flat and held only fraud files. Three options: (A) split only those shared folders by problem; (B) one self-contained folder per problem, possibly with its own `pyproject.toml` as a uv workspace; (C) add triage beside fraud and move nothing.
+- **Decision (owner): option A.** Layout: `src/payguard/{fraud,triage}/`, `scripts/{fraud,triage}/`, `reports/{fraud,triage}/`, `tests/{fraud,triage}/`, with one `pyproject.toml`, one lock and one setup path. Triage-only dependencies can go in their own dependency group so the fraud API doesn't install them (decided in the Part 2 plan). B was rejected as ceremony with no current need (a second dependency file and lock to maintain); C because the flat folders would mix the two problems.
+- **Scope argument for the final write-up (owner):** the brief's ~3 hours per part is an estimate, not a requirement. If the work reads as over-built, the answer is a list of what could easily be cut if the timescale were binding, while the "Possible additions" list shows how much further a real build would go.
