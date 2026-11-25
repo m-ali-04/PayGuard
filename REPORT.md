@@ -222,7 +222,25 @@ Amounts are in the data's own currency, which it doesn't name. Without a ratio, 
 ## 4. Complaint triage
 
 ### 4.1 Framing
-*The client's situation (fully manual handling, two worries: hallucination and misrouted sensitive cases) and how it set the evaluation's priorities; the brief's record; 50,000 complaints a month.*
+
+**The question.** Your support team handles thousands of free-text complaints a month, all by hand. You asked whether an LLM can triage them: route each complaint to the right team with a summary, without hallucinating or misrouting sensitive cases.
+
+**What the pipeline produces.** A batch script turns each complaint narrative into a structured record:
+- `category`: the team to route to, from our own taxonomy of seven (the brief asked for 5–8);
+- `urgency`: low, medium or high;
+- `summary`: 1–2 sentences;
+- `requires_human`: whether a person must handle the complaint, with the reasons, so a reviewer sees why;
+- `confidence_note`: when and why the triage might be wrong.
+
+**What success means.** Today every complaint is handled by hand, so each one the pipeline routes on its own takes work off the team, and each one it sends to a person arrives already routed and summarised. Your two worries became the evaluation's priorities:
+- **Misrouted sensitive cases come first.** A complaint that needs a person must reach one, so recall on `requires_human` matters more than the automation rate. Fraud allegations and legal threats must never be auto-closed.
+- **Hallucination comes next.** The category must come from the taxonomy, and the summary must be faithful to the complaint.
+
+After those: how many complaints skip manual triage, how often those reach the right team, and the cost and latency at your 50,000 complaints a month.
+
+**The model is a component that can fail.** The brief judges the LLM as engineering: structured output enforced, failures retried, malformed answers handled. So the design keeps the model to judgements a schema can constrain, and puts the safety rule (who must see a person) in code (section 4.3).
+
+**Out of scope, as the brief says:** fine-tuning and a chatbot interface. The deliverable is a script that processes a batch.
 
 ### 4.2 Data
 *CFPB's removal of narratives and the archived source; the slice and how to reproduce it; the data review (product mix, noisy CFPB labels, sensitive share, redaction).*
