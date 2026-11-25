@@ -129,6 +129,7 @@ def spotcheck_status(out: pd.DataFrame) -> str:
         pick[["complaint_id", "narrative", "summary"]].assign(faithful="", notes="").to_csv(SPOTCHECK, index=False)
         return f"Spot-check pending: {SPOTCHECK.name} was just drawn; mark `faithful` y/n for each row."
     check = pd.read_csv(SPOTCHECK, dtype=str, keep_default_na=False)
+    check = check[check.complaint_id.str.strip() != ""]  # spreadsheet exports can add blank rows
     current = out.set_index("complaint_id").summary
     if (check.summary != check.complaint_id.map(current)).any():
         return f"Spot-check stale: {SPOTCHECK.name} doesn't match the current outputs; delete it to redraw."
