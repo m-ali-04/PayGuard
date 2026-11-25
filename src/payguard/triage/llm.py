@@ -5,6 +5,7 @@ hosted one means replacing this module. The model is treated as unreliable: its 
 constrained to the schema while it is generated, validated again here, and a truncated or invalid
 answer gets one re-ask before the complaint falls back to a human.
 """
+import re
 import time
 from dataclasses import dataclass
 
@@ -19,7 +20,7 @@ OLLAMA_URL = "http://localhost:11434"
 # context is small and silently truncates; 8192 fits the prompt, the longest narrative and the answer.
 OPTIONS = {"temperature": 0, "seed": 42, "num_ctx": 8192}
 THINK = False
-MAX_ATTEMPTS = 2  # one re-ask for a truncated or invalid answer
+MAX_ATTEMPTS = 2  # one re-ask for a truncated or invalid answer, with a new seed so it can differ
 TRANSPORT_RETRIES = 2  # for timeouts and server errors, with backoff
 
 
@@ -72,9 +73,12 @@ class Result:
     latency_s: float
 
 
+CLOSING_TAG = re.compile(r"<\s*/\s*complaint\s*>", re.IGNORECASE)
+
+
 def user_message(narrative: str) -> str:
-    # A complaint can't close the tag early and smuggle text outside it.
-    return f"<complaint>\n{narrative.replace('</complaint>', '</ complaint>')}\n</complaint>"
+    # A complaint can't close the tag early (in any spelling) and smuggle text outside it.
+    return f"<complaint>\n{CLOSING_TAG.sub('[/complaint]', narrative)}\n</complaint>"
 
 
 def _post(http: httpx.Client, payload: dict) -> dict:
@@ -84,7 +88,7 @@ def _post(http: httpx.Client, payload: dict) -> dict:
             response = http.post("/api/chat", json=payload)
         except httpx.ConnectError as e:
             raise OllamaUnavailable(f"Can't reach Ollama at {http.base_url}; is it running?") from e
-        except httpx.TimeoutException:
+        except httpx.TransportError:  # timeouts, and the server dropping mid-answer (e.g. out of memory)
             if last:
                 raise
         else:
@@ -101,7 +105,8 @@ def model_digest(http: httpx.Client, model: str) -> str | None:
     except httpx.ConnectError as e:
         raise OllamaUnavailable(f"Can't reach Ollama at {http.base_url}; is it running?") from e
     response.raise_for_status()
-    return next((m["digest"] for m in response.json()["models"] if m["name"] == model), None)
+    wanted = model if ":" in model else f"{model}:latest"  # Ollama lists untagged pulls as :latest
+    return next((m["digest"] for m in response.json()["models"] if m["name"] == wanted), None)
 
 
 def triage(http: httpx.Client, narrative: str, model: str) -> Result:
@@ -112,15 +117,17 @@ def triage(http: httpx.Client, narrative: str, model: str) -> Result:
         "format": SCHEMA,
         "stream": False,
         "think": THINK,
-        "options": OPTIONS,
     }
     start, prompt_tokens, output_tokens, error = time.perf_counter(), 0, 0, None
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            body = _post(http, payload)
-        except (httpx.HTTPStatusError, httpx.TimeoutException) as e:
+            body = _post(http, payload | {"options": OPTIONS | {"seed": OPTIONS["seed"] + attempt - 1}})
+        except (httpx.HTTPStatusError, httpx.TransportError) as e:
             error = f"request failed: {e}"
             break
+        except ValueError:  # the reply body isn't JSON
+            error = "invalid answer (reply isn't JSON)"
+            continue
         prompt_tokens += body.get("prompt_eval_count", 0)
         output_tokens += body.get("eval_count", 0)
         if body.get("done_reason") == "length":
@@ -130,6 +137,9 @@ def triage(http: httpx.Client, narrative: str, model: str) -> Result:
             output = TriageOutput.model_validate_json(body["message"]["content"])
         except ValidationError as e:
             error = f"invalid answer ({e.error_count()} validation errors)"
+            continue
+        except (KeyError, TypeError):
+            error = "invalid answer (reply has no message)"
             continue
         return Result(output, attempt, None, prompt_tokens, output_tokens, time.perf_counter() - start)
     return Result(None, attempt, error, prompt_tokens, output_tokens, time.perf_counter() - start)

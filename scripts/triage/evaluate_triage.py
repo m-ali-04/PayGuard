@@ -160,7 +160,7 @@ def cost_section(out: pd.DataFrame) -> str:
     called = out[out.attempts != ""]
     latency = called.latency_s.astype(float)
     tokens_in, tokens_out = called.prompt_tokens.astype(int).mean(), called.output_tokens.astype(int).mean()
-    gpu_hours = latency.mean() * MONTHLY_VOLUME / 3600
+    compute_hours = latency.mean() * MONTHLY_VOLUME / 3600
     hosted = (tokens_in * HOSTED_IN + tokens_out * HOSTED_OUT) / 1e6 * MONTHLY_VOLUME
     return "\n\n".join([
         "## 7. Cost and latency",
@@ -168,7 +168,7 @@ def cost_section(out: pd.DataFrame) -> str:
               [["Latency (s)", f"{latency.mean():.2f}", f"{np.percentile(latency, 95):.2f}"],
                ["Input tokens", f"{tokens_in:.0f}", f"{np.percentile(called.prompt_tokens.astype(int), 95):.0f}"],
                ["Output tokens", f"{tokens_out:.0f}", f"{np.percentile(called.output_tokens.astype(int), 95):.0f}"]]),
-        f"At {MONTHLY_VOLUME:,} complaints a month: **{gpu_hours:.0f} GPU-hours** for one worker processing them one "
+        f"At {MONTHLY_VOLUME:,} complaints a month: **{compute_hours:.0f} compute-hours** for one worker processing them one "
         f"at a time on the machine that ran the batch (no API cost). The same token counts on {HOSTED_MODEL} "
         f"(${HOSTED_IN:.2f}/${HOSTED_OUT:.2f} per million tokens) would cost about **${hosted:,.0f} a month**; "
         "tokenizers differ, so that's a rough comparison.",

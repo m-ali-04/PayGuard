@@ -29,7 +29,8 @@ def review_reasons(narrative: str, tags: str, assessment: Assessment | None) -> 
     if not is_usable(narrative):
         reasons.append("no usable narrative")
     if assessment is None:
-        reasons.append("triage failed")
+        if is_usable(narrative):  # a skipped narrative never reached the model, so nothing failed
+            reasons.append("triage failed")
     else:
         if assessment.category == Category.OTHER:
             reasons.append("unclear category")

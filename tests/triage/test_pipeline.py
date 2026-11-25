@@ -15,7 +15,7 @@ def test_short_narrative_skips_the_model_and_keeps_the_tag():
 
     http = httpx.Client(base_url=OLLAMA_URL, transport=httpx.MockTransport(no_call))
     record = triage_complaint(http, "1", "fraud", "Servicemember", "m")
-    assert record.reasons == ("tag: Servicemember", "no usable narrative", "triage failed") and record.requires_human
+    assert record.reasons == ("tag: Servicemember", "no usable narrative") and record.requires_human
     row = to_row(record, "m", "d")
     assert row["attempts"] == "" and row["category"] == "" and row["requires_human"] == "y"
 

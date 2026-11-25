@@ -10,9 +10,13 @@ def assessment(category=Category.BANKING_PAYMENTS, urgency=Urgency.LOW, flags=()
     return Assessment(category, urgency, frozenset(flags))
 
 
-def test_tag_survives_empty_narrative_and_failed_triage():
+def test_tag_survives_empty_narrative():
     reasons = review_reasons("", "Older American, Servicemember", None)
-    assert reasons == ["tag: Older American", "tag: Servicemember", "no usable narrative", "triage failed"]
+    assert reasons == ["tag: Older American", "tag: Servicemember", "no usable narrative"]
+
+
+def test_tag_survives_failed_triage():
+    assert review_reasons(TEXT, "Servicemember", None) == ["tag: Servicemember", "triage failed"]
 
 
 def test_tag_alone_forces_review_of_a_minor_complaint():
