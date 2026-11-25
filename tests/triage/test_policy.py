@@ -39,3 +39,16 @@ def test_unclear_category_and_high_urgency_are_reasons():
 
 def test_too_short_narrative_is_a_reason_even_when_triage_ran():
     assert review_reasons("this is fraud", "", assessment()) == ["no usable narrative"]
+
+
+def test_legal_words_send_a_complaint_to_a_human_whatever_the_model_says():
+    assert review_reasons("They served me court papers for a debt I paid off.", "", assessment()) == ["legal words"]
+    assert review_reasons("My attorney will contact you about these charges.", "", assessment()) == ["legal words"]
+
+
+def test_words_containing_legal_terms_dont_match():
+    assert review_reasons("I have an issue with a courtesy fee on my account.", "", assessment()) == []
+
+
+def test_failed_triage_keeps_the_legal_reason():
+    assert review_reasons("I am filing a lawsuit over these unauthorized fees.", "", None) == ["legal words", "triage failed"]
