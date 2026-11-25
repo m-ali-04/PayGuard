@@ -6,3 +6,4 @@ __pycache__/
 context/
 mlflow.db
 mlruns/
+data/triage/trial_*.csv

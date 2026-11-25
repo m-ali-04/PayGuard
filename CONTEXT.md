@@ -312,6 +312,12 @@ Planned in plan mode, built in three short sessions (S1 store helpers and thresh
   - **Outputs as CSV** (review reasons `; `-joined), committed so the eval reruns without Ollama.
   - **No synthetic set (owner, supersedes the earlier "rare flags will be exercised by the synthetic set" and the planned synthetic injection cases).** Prompt injection and the `safety_risk`/`discrimination` flags go into the README as limitations: the injection defences are structural (fenced text, schema-constrained output, `requires_human` in code) but untested against attacks. Briefly chosen first: Gemini writes the cases; dropped before the plan was approved.
   - Small extras in S1: `table()`/`pct()` move to `src/payguard/reporting.py` for both parts; `pydantic`, already imported by `llm.py` through fastapi, gets declared.
+- **Live panel and limited runs (owner).** The owner wants to watch runs live with rich, as in Part 1, and runs them in their own terminal. `run_triage.py --limit N` takes the first N gold complaints (dev, then test) so the panel compares with gold as rows arrive, and writes a git-ignored `data/triage/trial_<model>.csv`; only a full run writes the committed `triage_sample.csv`. The live trial replaced the scripted 5-complaint trial.
+- **Model: Granite 4.2 3B (owner), digest `40577dc168a3`, now `--model`'s default.** Owner's runs on the first 20 dev complaints:
+  - Granite: category 20/20, urgency 14/20, sent exactly the 7 the labels need to a human, 0 false flags, 0 sensitive misses; median 3.9 s; but 10/20 summaries exceed 2 sentences.
+  - Qwen 3.5 4B (`d8b0f5e9760c`): category 19/20, urgency 12/20, 0 sensitive misses, best summaries (0 issues), but 10 false flags (7 `legal_threat`: it treats citing a law as a threat) sent 15/20 to a human, which undercuts the workload goal; median 4.6 s.
+  - Reasoning: Granite's routing matched the labels and its weakness is cosmetic and caught by the summary check; Qwen's weakness hits the business goal. It's also smaller and faster. Caveat: 20 dev complaints only.
+  - Finding for the limitations: the same complaint can get a different answer between runs despite temperature 0 and a seed (23130174 was high in the scripted trial, medium in the live run).
 
 ## Team & Roles
 
