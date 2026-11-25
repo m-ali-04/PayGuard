@@ -56,7 +56,20 @@ Tested from a clean environment on Linux (WSL2 on Windows 11). You need `curl` a
    uv run scripts/triage/get_complaints.py            # checks the committed file's SHA-256, no network
    uv run scripts/triage/get_complaints.py --rebuild  # re-draws it from the archive; must give the same bytes
    ```
-10. **Run the tests.** The fraud data tests are skipped if the dataset hasn't been downloaded:
+10. **Triage the complaints with the local model.** The pipeline runs `granite4.2:3b` through [Ollama](https://ollama.com), a system install rather than a Python package (needs `sudo`; about 2 GB of model download). Ubuntu on WSL needs `zstd` for the installer:
+   ```bash
+   sudo apt-get install -y zstd
+   curl -fsSL https://ollama.com/install.sh | sh   # installs and starts the Ollama service; uses an NVIDIA GPU when present
+   ollama pull granite4.2:3b
+   ```
+   Then run the pipeline in a terminal you can watch: a live panel shows each decision as it's made, and for labelled complaints how it compares with the gold labels.
+   ```bash
+   uv run scripts/triage/run_triage.py --limit 20   # trial: the first 20 gold complaints -> data/triage/trial_granite4.2_3b.csv (git-ignored)
+   uv run scripts/triage/run_triage.py              # all 500 -> data/triage/triage_sample.csv (committed)
+   uv run scripts/triage/evaluate_triage.py         # reads the committed outputs, no model needed -> reports/triage/evaluation_report.md
+   ```
+   Latency depends on the GPU: about 4 s per complaint on an RTX 4070 Laptop GPU (8 GB).
+11. **Run the tests.** The fraud data tests are skipped if the dataset hasn't been downloaded:
    ```bash
    uv run pytest
    ```
@@ -175,14 +188,14 @@ Full numbers: [decision report](reports/fraud/decision_report.md) (regenerate wi
   - **Short texts:** median ~270 tokens, longest ~2,500, so no truncation or chunking is needed.
   - **Noisy CFPB labels:** one identical template complaint appears 12 times against 12 companies with different product labels. CFPB's product field follows the company more than the text, so it can only serve as a weak reference label. Duplicates are kept: they're real data and give a free consistency check.
   - **Many sensitive cases:** keyword counts suggest about 22% mention fraud or unauthorised activity and 12% legal action. 19% are tagged Servicemember or Older American.
-  - **No prompt injections** in the real data, so the adversarial cases will be synthetic and kept separate.
+  - **No prompt injections** in the real data. No synthetic attacks were built, so injection resistance isn't measured (see Limitations).
   - **Redaction:** CFPB removed personal details before publishing (`XXXX`, `XX/XX/2026`; amounts as `{$…}`). That hides names, dates and deadlines the triage might use. The client's own complaints would arrive unredacted, which raises a data-handling question for production (personal data sent to an LLM provider).
 
 ### Triage design
 
 The client's question: can an LLM take work off a fully manual support team, routing each complaint to the right team with a summary, **without hallucinating or misrouting sensitive cases**? The design keeps the LLM to judgements a schema can constrain, and puts the safety rule in code.
 
-- **One vocabulary, one set of definitions** (`src/payguard/triage/taxonomy.py`). The labelling guide is generated from them and the LLM prompt will use the same text, so human labels and model output are judged against identical wording.
+- **One vocabulary, one set of definitions** (`src/payguard/triage/taxonomy.py`). The labelling guide is generated from them and the LLM prompt uses the same text, so human labels and model output are judged against identical wording.
 - **Seven routing categories,** applied in order: fraud or unauthorised activity → `fraud_scams` on any product; otherwise credit-report content → `credit_reporting` from any company; otherwise by product: `debt_collection`, `banking_payments`, `credit_cards`, `lending`. `other` is used only when the text is unclear or fits none. The output schema allows only these values, so the model can't invent a category.
 - **Urgency is harm-led** (low, medium, high): the kind of harm and whether it's ongoing, imminent or past. Time cues in the text can raise urgency. Missing or redacted time never lowers it: 69% of the slice has no usable time cue after CFPB's redaction, and only one explicit date survives. On the client's unredacted complaints, time would carry more weight.
 - **Five flags** the LLM sets from the text, each with a boundary:
@@ -202,12 +215,17 @@ The client's question: can an LLM take work off a fully manual support team, rou
   - any flag
 
   The reasons go into the output so reviewers see why. The policy never changes urgency, so a tagged complaint about a minor issue is reviewed at low priority but never auto-closed. The tag rule costs about 11% more reviews in the slice (53 tagged complaints with nothing sensitive in the text), accepted deliberately for protected groups.
-- **Model: a local ~4B model through Ollama** (candidates Granite 4.2 3B and Qwen 3.5 4B, picked after a 5-complaint trial). It's free, has no rate limits, keeps complaints on the machine, and constrains output to the schema. A small model also widens who can run the pipeline (8 GB of memory is enough). The pipeline reaches the model through one small boundary, so a hosted model is a one-module swap. Gemma 4 e4B was dropped from the trial: it runs like a 4B model but downloads and loads like an ~8B one (6.6 GB).
+- **Model: Granite 4.2 3B through Ollama** (`granite4.2:3b`, digest `40577dc168a3`, recorded in every output row). A local model is free, has no rate limits, keeps complaints on the machine, and constrains output to the schema; a small one widens who can run the pipeline (8 GB of memory is enough). The pipeline reaches the model through one small boundary (`src/payguard/triage/llm.py`), so a hosted model is a one-module swap.
+  - **Chosen over Qwen 3.5 4B** on the first 20 dev complaints. Granite got every category right, sent exactly the 7 complaints the labels need to a human and raised no false flags, but half its summaries ran past 2 sentences. Qwen wrote the best summaries but raised 10 false flags (7 times treating a cited law as a legal threat) and sent 15 of 20 to a human, which works against taking load off the team.
+  - Gemma 4 e4B was dropped before the trial: it runs like a 4B model but downloads and loads like an ~8B one (6.6 GB).
+- **The model is treated as unreliable.** Its output is constrained to the schema while it's generated and validated again in code; a truncated or invalid answer gets one re-ask, connection errors get retries with backoff, and anything still failing goes to a human. Complaint text is fenced in tags it can't close, and the prompt tells the model it's data, not instructions.
+- **Runner and live panel** (`scripts/triage/run_triage.py`): one path per complaint (narratives under 5 words skip the model; the review policy always runs), a live rich panel, and a CSV with fixed columns: the judgement, every review reason, attempts, errors, tokens, latency and the model digest. A run that loses the Ollama server writes nothing, so a file is never partial. `--limit N` runs the first N gold complaints as a git-ignored trial.
+- **Evaluation report** (`scripts/triage/evaluate_triage.py`): scores against the gold labels (test is the headline; dev was available while building), every complaint the labels send to a human that the pipeline would route automatically, agreement with CFPB's fields, consistency on identical complaints, summary checks (more than 2 sentences, numbers absent from the complaint) plus a 10-summary human spot-check, and cost and latency at the client's 50,000 complaints a month, with Claude Haiku 5.5 as a hosted comparison.
 - **Weak CFPB reference:** CFPB's product and issue fields map to the same categories in the same rule order, to check broad agreement on all 500. It's weakest where the stakes are highest: CFPB's issue field marks 12 complaints as fraud, while about 22% of narratives use fraud language.
 - **Gold set:** 80 complaints labelled by Gemini Neon at its high effort setting from the labelling guide (narrative and tags only; no CFPB product or issue), 30 dev / 50 held out, one copy per narrative so template complaints can't sit on both sides. Created with `uv run scripts/triage/make_labelling_file.py`, validated with `--check`. Gold `requires_human` comes from the same policy applied to these labels. See Limitations for why a model labelled them and what that means for the scores.
 - **Future modification:** if the review queue still outruns the team, add priority tiers or narrow the tag rule. Today every complaint is handled manually, so reviewer capacity isn't a constraint for the prototype.
 - **Possible addition: a larger-model comparison.** Rerun the same prompt and schema with an 8–9B model (e.g. Qwen 3.5 9B, ~6.6 GB, or Granite 4.2 8B, ~5.3 GB) on the 30 dev rows. Only the model size changes, so it isolates what the small model gives up. The Gemini-labelled gold set doesn't answer that, because it differs from the pipeline in model, provider and setup at once.
-- **Possible addition: an enriched real sample for rare flags.** The synthetic set shows the safety rule catches clear cases, but synthetic complaints are cleaner than real ones, so it can't measure real-world recall. The standard way to do that is to search the wider data for likely cases (e.g. "suicide", "domestic", "abuse", "disabled", race terms), label those real complaints, and score `safety_risk` and `discrimination` on them separately. The 10 MB chunk already downloaded holds about 326,000 complaints to search. Not built: it needs another labelling pass the time budget doesn't cover.
+- **Possible addition: an enriched real sample for rare flags.** The gold set has no test cases for `safety_risk` or `discrimination`, so neither is measured. The standard way to measure rare classes on real text is to search the wider data for likely cases (e.g. "suicide", "domestic", "abuse", "disabled", race terms), label those real complaints, and score `safety_risk` and `discrimination` on them separately. The 10 MB chunk already downloaded holds about 326,000 complaints to search. Not built: it needs another labelling pass the time budget doesn't cover.
 
 ### Limitations
 
@@ -216,4 +234,6 @@ The client's question: can an LLM take work off a fully manual support team, rou
   - **Noise in the reference is expected either way:** human labellers disagree on this kind of triage too, especially non-experts, so hand labels from the project team wouldn't have been a much firmer reference.
   - **In production** the reference would be the client support team's own past routing and escalation decisions, not hand labels made for the evaluation.
 - **Known inconsistencies in the labels, left uncorrected.** A review found places where the labels follow rules the guide doesn't state: fraud urgency rising with the amount lost (past, denied fraud claims are high at $5,900 and $23k but medium at $170 and $290), the credit-report-first rule applied unevenly to collector complaints, an uneven line for "severe financial hardship", one locked account rated low while other blocked funds are high, and one high urgency without a scheduled foreclosure. The pipeline model only sees the guide, so some measured errors are noise in the reference rather than model mistakes.
-- **Few sensitive cases to score flags on.** The 50 test rows hold no `safety_risk` or `discrimination` cases and only 4–5 each for the other flags, so one miss moves recall by 20–25 points. Flag results should be read as counts (e.g. "4 of 5 caught"); the two empty flags are exercised only by the synthetic set.
+- **Few sensitive cases to score flags on.** The 50 test rows hold no `safety_risk` or `discrimination` cases and only 4–5 each for the other flags, so one miss moves recall by 20–25 points. Flag results should be read as counts (e.g. "4 of 5 caught"); the two empty flags aren't measured (enriched real sampling is listed as a possible addition).
+- **Prompt injection isn't tested.** The real slice contains none, and no synthetic attacks were built (owner's decision, for the time budget). The defences are structural: complaint text is fenced and can't close its tag, the output is schema-constrained, and `requires_human` is decided in code, so text can't switch it off. They haven't been tested against attacks.
+- **The same complaint can get a different answer between runs,** despite temperature 0 and a fixed seed (one complaint was rated high in one run and medium in the next). The evaluation's consistency section measures how often identical complaints disagree within a run.
