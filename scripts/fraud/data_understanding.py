@@ -64,7 +64,7 @@ def fraud_over_time(df: pd.DataFrame) -> tuple[str, str]:
 
     d1, d2 = days.loc[1], days.loc[2]
     summary = (f"Day 2 holds **{d2.fraud:.0f} frauds** ({d2.rate:.3%}) against {d1.fraud:.0f} ({d1.rate:.3%}) on day 1, "
-               f"so a day-2 test set has about {d2.fraud:.0f} positives. In the {quiet.sum()} quietest hours "
+               f"so a test set cut from day 2 holds at most {d2.fraud:.0f} positives. In the {quiet.sum()} quietest hours "
                f"fraud runs at **{quiet_rate / busy_rate:.1f}x** the rate of busier hours.")
     body = f"""## 1. Fraud over time
 {figure}
@@ -75,8 +75,8 @@ def fraud_over_time(df: pd.DataFrame) -> tuple[str, str]:
 | 2 | {d2.n:,.0f} | {d2.fraud:.0f} | {d2.rate:.3%} |
 
 Volume follows a daily cycle with two quiet stretches. Fraud does not follow volume: in the {quiet.sum()} hours with under
-half the median hourly volume, the fraud rate is {quiet_rate:.3%} against {busy_rate:.3%} elsewhere. With about
-{d2.fraud:.0f} frauds on day 2, each caught fraud is worth {1 / d2.fraud:.1%} of recall, so model differences of a
+half the median hourly volume, the fraud rate is {quiet_rate:.3%} against {busy_rate:.3%} elsewhere. With at most
+{d2.fraud:.0f} frauds in a day-2 test set, each caught fraud is worth at least {1 / d2.fraud:.1%} of recall, so model differences of a
 few frauds are within noise.
 
 **Feeds:** evaluation framework (split design, test-set size, whether confidence intervals are needed).

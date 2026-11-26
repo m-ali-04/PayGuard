@@ -5,7 +5,7 @@ Test window 36–48h: 92,576 transactions, 115 frauds. Alert budget 0.2% → **1
 
 ## Default recommendation
 
-**`hgb`** by the selection rule (highest AP, not worse at the budget). Owner's decision and reason: see README "Results".
+**`hgb`** by the selection rule (highest AP, not worse at the budget). Owner's decision and reason: see REPORT.md section 3.5.
 
 ## 1. Ranking quality and budget performance (test)
 

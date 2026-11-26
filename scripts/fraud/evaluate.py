@@ -162,7 +162,7 @@ def write_report(results: dict[str, dict], windows: dict[str, pd.DataFrame]) -> 
         "window, not scaled to a day.",
 
         "## Default recommendation",
-        f"{recommendation(results)} Owner's decision and reason: see README \"Results\".",
+        f"{recommendation(results)} Owner's decision and reason: see REPORT.md section 3.5.",
 
         "## 1. Ranking quality and budget performance (test)",
         table(["Model", "AP", f"Frauds caught (of {frauds})", "Precision", "Recall", "ROC-AUC (ref.)"],
